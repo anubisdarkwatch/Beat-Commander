@@ -8,6 +8,10 @@ flash in sync, for DJ sets, stages or a crowd holding boards across a venue.
 
 Companion project: [W10-ISM-Waterfall](https://github.com/anubisdarkwatch/W10-ISM-Waterfall).
 
+| W10 conductor (mic, LoRa TX) | Heltec V3 follower (LoRa RX) |
+|---|---|
+| ![Conductor](docs/conductor.jpg) | ![Follower](docs/follower.jpg) |
+
 ## What it does
 
 - **Beat detection from the mic** (ES8311 codec): kick-drum band + full-band onset detection every 8 ms
@@ -44,6 +48,26 @@ LoRa: 916.0 MHz, SF7, BW 500 kHz, CR 4/5, preamble 8, explicit header, CRC on, d
 A follower just listens on those settings and flashes when a packet arrives (~10 ms airtime).
 916.0 MHz sits clear of the Meshtastic US default (906.875) and the US LoRaWAN channel plan.
 
+## Follower: Heltec WiFi LoRa 32 V3
+
+`heltec_v3_beat_follower/heltec_v3_beat_follower.ino` turns a Heltec V3 into a follower that flashes in sync with the conductor.
+
+- Listens on 916.0 MHz, SF7 / BW500, and flashes the white LED and the OLED (full-screen invert) on every received beat; the downbeat is brighter
+- OLED shows BPM, the 1-2-3-4 bar position, RSSI / SNR and packet / loss counts, with **LIVE**, **HOLD** or **WAIT** status
+- **Flywheel:** if packets drop, it keeps flashing at the last tempo for 4 s (status **HOLD**)
+- Optional WS2812 strip on GPIO47 (set `STRIP_LEN`, needs Adafruit NeoPixel), colored by the conductor's hue, which changes every bar
+- Prints an I2C scan at boot, so a dead OLED shows up in the serial log
+
+Tested on a desk with no losses: 300+ packets, RSSI around −75 dBm, SNR around +10 dB.
+
+Build: board **ESP32S3 Dev Module**, USB CDC On Boot **Disabled** (the V3 uses a USB-UART bridge), PSRAM **Disabled**,
+library **Adafruit GFX**. Serial monitor at 115200.
+
+Heltec V3 pins: LoRa NSS 8, SCK 9, MOSI 10, MISO 11, RST 12, BUSY 13, DIO1 14 (TCXO on DIO3 at 1.8 V);
+OLED SDA 17, SCL 18, RST 21, power via Vext (GPIO36, LOW = on); LED 35.
+
+Any SX1262 board can follow: copy the radio settings and the `BeatPacket` struct.
+
 ## Hardware notes (W10)
 
 | Function | Pins |
@@ -76,7 +100,8 @@ tempo estimate, confidence, onsets per second and mic level once a second.
 
 ## Roadmap
 
-- Follower firmware for other LoRa boards (flash on received beats, with latency compensation)
+- Latency compensation on followers (~10 ms LoRa airtime)
+- Followers for XIAO ESP32S3 + Wio-SX1262 and other SX1262 boards
 - Bluetooth MIDI clock input from DJ software
 - Tilt-controlled effects via the onboard QMI8658 IMU
 
