@@ -66,6 +66,7 @@ library **Adafruit GFX**. Serial monitor at 115200.
 Heltec V3 pins: LoRa NSS 8, SCK 9, MOSI 10, MISO 11, RST 12, BUSY 13, DIO1 14 (TCXO on DIO3 at 1.8 V);
 OLED SDA 17, SCL 18, RST 21, power via Vext (GPIO36, LOW = on); LED 35.
 
+Ready-made Heltec V3 devices such as the [Meshnology N33 / N35](https://meshnology.com/collections/all) (cased, with battery) run this follower as-is.
 Any SX1262 board can follow: copy the radio settings and the `BeatPacket` struct.
 
 ## Hardware notes (W10)
@@ -111,4 +112,6 @@ MIT, see [LICENSE](LICENSE).
 
 ## Credits
 
-Built by Anubis Darkwatch with Claude. Pin mapping and peripheral details from Meshnology's W10 documentation and demos.
+Built by Anubis Darkwatch with Claude.
+
+Hardware provided by [Meshnology](https://meshnology.com): thanks for supplying the [Meshnology W10 LoRa AIoT Dev Kit](https://meshnology.com/products/meshnology-w10-lora-aiot-dev-kit-esp32-s3-long-range-iot-development-board) for this project. Pin mapping and peripheral details come from Meshnology's W10 documentation and demos.
