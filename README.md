@@ -77,9 +77,9 @@ A 2.8" touchscreen for the DJ booth. It shows the beat link live (huge BPM, a fu
 conductor's colour on every beat, the 1-2-3-4 bar, RSSI / SNR / losses) and can **take over the beat**:
 tap tempo, fine-tune and nudge from the touchscreen, and every follower in the room keeps flashing.
 
-| Live on the beat link | Console, Heltec follower and W10 conductor |
-|---|---|
-| ![Beat Console live](docs/console-live.jpg) | ![Console with follower and conductor](docs/console-rig.jpg) |
+| Bridge found, waiting for the W10 | Live on the beat link | Console, Heltec follower and W10 conductor |
+|---|---|---|
+| ![Beat Console ready](docs/console-ready.jpg) | ![Beat Console live](docs/console-live.jpg) | ![Console with follower and conductor](docs/console-rig.jpg) |
 
 Every screen (rendered from the firmware's own drawing code):
 
