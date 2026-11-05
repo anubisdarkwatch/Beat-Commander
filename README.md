@@ -8,6 +8,8 @@ flash in sync, for DJ sets, stages or a crowd holding boards across a venue.
 
 Companion project: [W10-ISM-Waterfall](https://github.com/anubisdarkwatch/W10-ISM-Waterfall).
 
+**New:** a touchscreen [booth console](#booth-console-cyd--heltec-v3-bridge) on a CYD that shows the beat link live and can take over the beat.
+
 | W10 conductor (mic, LoRa TX) | Heltec V3 follower (LoRa RX) |
 |---|---|
 | ![Conductor](docs/conductor.jpg) | ![Follower](docs/follower.jpg) |
@@ -68,6 +70,85 @@ OLED SDA 17, SCL 18, RST 21, power via Vext (GPIO36, LOW = on); LED 35.
 
 Ready-made Heltec V3 devices such as the [Meshnology N33 / N35](https://meshnology.com/collections/all) (cased, with battery) run this follower as-is.
 Any SX1262 board can follow: copy the radio settings and the `BeatPacket` struct.
+
+## Booth console: CYD + Heltec V3 bridge
+
+A 2.8" touchscreen for the DJ booth. It shows the beat link live (huge BPM, a full-panel flash in the
+conductor's colour on every beat, the 1-2-3-4 bar, RSSI / SNR / losses) and can **take over the beat**:
+tap tempo, fine-tune and nudge from the touchscreen, and every follower in the room keeps flashing.
+
+![Beat Console screens](docs/console-screens.png)
+
+```
+W10 conductor ──LoRa 916.0 MHz──► Heltec V3 bridge ──ESP-NOW──► CYD console
+                                         ▲                          │
+       followers ◄──LoRa (takeover)──────┴────────ESP-NOW (FIRE)────┘
+```
+
+The CYD (ESP32-2432S028R) has no LoRa radio, so a Heltec V3 does the radio work. The bridge needs no
+screen: a V3 with a dead OLED is perfect for this. No soldering anywhere, just two USB cables.
+
+### Flash it (browser, no installs)
+
+1. Chrome or Edge on desktop: open https://espressif.github.io/esptool-js/ → **Connect** → pick the board's port.
+2. Flash at address **0x0** → **Program**, then unplug and replug.
+   - CYD: [`firmware/CYD-Beat-Console-v1.0.1.bin`](firmware/CYD-Beat-Console-v1.0.1.bin)
+   - Heltec V3: [`firmware/Beat-Bridge-HeltecV3-v1.0.bin`](firmware/Beat-Bridge-HeltecV3-v1.0.bin)
+3. If Connect fails: hold **BOOT** while plugging in (or hold BOOT, tap RST, release).
+
+First boot of the CYD asks you to calibrate the touchscreen: tap three crosses with a fingernail or stylus.
+To redo it later, touch the screen during the boot splash.
+
+### Using it
+
+| Control | Action |
+|---|---|
+| **TAP** | Tap tempo. The first tap is the downbeat. Tapping while following takes over the beat. |
+| **−** / **+** | 0.1 BPM per press, hold for 1 BPM steps (takeover only) |
+| **◀** / **▶** | Move the beat 10 ms earlier / later (takeover only) |
+| **TAKE** / **RELEASE** | Take the beat from the W10 at its current tempo and phase, or hand it back |
+| Hold the header 2 s | Rotate 180° (remembered) |
+
+Status pill: **WAIT** (nothing heard yet), **LIVE** (following the W10), **HOLD** (packets dropped, flywheel
+keeps time for 4 s), **TAKE** (the booth is driving), **NO LINK** (no bridge heard for 3 s).
+
+**Takeover:** TAKE continues the W10's beat grid without a skip, so the room doesn't see a glitch. Then switch
+the W10's **LORA TX** off (hold BOOT 1 s on it). If the console still hears the W10, a red banner says so:
+two transmitters on the link collide. RELEASE hands back; followers flywheel until the W10 is on air again.
+The bridge carries the W10's sequence numbers on, so followers don't count false losses.
+
+During takeover the console flashes 11 ms after it sends (`LINK_AIR_MS`), which is when the followers
+actually flash after LoRa airtime, so the booth screen and the crowd stay in sync.
+
+The CYD's RGB LED flashes with the beat too; the Heltec's white LED blinks per beat heard and double-blinks
+per beat sent.
+
+### Build from source
+
+Arduino IDE 2.x, **esp32 by Espressif** core 2.x or 3.x. No extra libraries for either sketch.
+
+| Sketch | Board | Settings |
+|---|---|---|
+| `cyd_beat_console/` | ESP32 Dev Module | defaults |
+| `heltec_v3_espnow_bridge/` | ESP32S3 Dev Module | USB CDC On Boot **Disabled**, PSRAM **Disabled** |
+
+Options at the top of each sketch:
+- `LINK_NET_ID` / `LINK_ESPNOW_CH` in `link.h` (keep both copies identical) to run two rigs side by side.
+- `PANEL_ST7789 1` for the "2-USB" CYD variant; `PANEL_BGR` if red and blue are swapped; `PANEL_MIRROR` if the image is mirrored; `PANEL_INVERT` if colours look negative.
+- `LINK_POWER_DBM` on the bridge (takeover TX power, default 10 dBm like the W10).
+- `DEBUG_TOUCH 1` prints raw touch readings.
+
+The console draws in 24-row bands (about 15 KB of RAM for the whole UI) with the Orbitron and Share Tech Mono
+brand fonts baked in as 4-bit anti-aliased bitmaps (`tools/mkfonts_console.py`, fonts SIL OFL 1.1).
+PC previews of every screen: `g++ -std=c++17 -I cyd_beat_console tools/preview_console.cpp -o preview && ./preview outdir`.
+
+Both boards print a log at 115200: the bridge one CSV line per beat (`RX,seq,bpm,beat,hue,rssi,snr` /
+`TX,...`), the console a status line every 2 s.
+
+### Link frame (ESP-NOW, broadcast)
+
+`LinkFrame` in `link.h`, 18 bytes: magic `'A','D'`, version 1, net id, type (`R` relay, `H` heartbeat,
+`F` fire, `A` TX ack), then seq, bpm×10, beat, hue, RSSI, SNR×4, flags, count.
 
 ## Hardware notes (W10)
 
