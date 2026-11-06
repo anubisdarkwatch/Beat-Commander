@@ -107,10 +107,11 @@ void drawFrame(const View& v, uint32_t now) {
   // lower panel
   cv.fillRect(0, 178, SW, SH - 178, COL_PANEL);
   if (v.mode == MODE_CONDUCT) {
-    if (!v.micOk) {                                     // mic diagnostics where the scope would be
+    if (!v.micOk) {                                     // mic diagnostics fill the whole lower panel
       cv.setFont(&fonts::Font0); cv.setTextColor(COL_RED); cv.setTextDatum(top_left);
-      const char* d = v.micDiag ? v.micDiag : ""; int len = strlen(d), y = 182;
-      for (int k = 0; k < len && y < 222; k += 21, y += 9) { char ln2[22]; snprintf(ln2, sizeof(ln2), "%.21s", d + k); cv.drawString(ln2, 4, y); }
+      const char* d = v.micDiag ? v.micDiag : ""; int len = strlen(d), y = 181;
+      for (int k = 0; k < len && y <= 232; k += 22, y += 8) { char ln2[23]; snprintf(ln2, sizeof(ln2), "%.22s", d + k); cv.drawString(ln2, 2, y); }
+      return;
     }
     // onset scope + level meter
     int base = 214;

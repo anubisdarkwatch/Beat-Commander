@@ -26,7 +26,7 @@
 #include <driver/i2s_std.h>
 #include "link.h"
 
-#define FW_VERSION    "v1.0.3"
+#define FW_VERSION    "v1.0.4"
 
 // ---------- options ----------
 #define LINK_AIR_MS    11      // flash this long after sending: matches the followers (LoRa airtime)
@@ -74,21 +74,25 @@ volatile uint32_t hopsIn = 0;
 struct Hop { int16_t* p; uint32_t t; };
 enum MicPath : uint8_t { MIC_NONE, MIC_M5, MIC_I2S };
 uint8_t micPath = MIC_NONE;
-char micDiag[128] = "";
+char micDiag[200] = "";
 
 // ---- capture the ESP-IDF driver's own error text (e.g. "i2s_std: sample rate is too large") ----
-char lastDrvErr[96] = "";
+char lastDrvErr[160] = "";
 int logHook(const char* fmt, va_list ap) {
-  char b[160]; va_list ap2; va_copy(ap2, ap); vsnprintf(b, sizeof(b), fmt, ap2); va_end(ap2);
+  char b[200]; va_list ap2; va_copy(ap2, ap); vsnprintf(b, sizeof(b), fmt, ap2); va_end(ap2);
   const char* p = b;
   while (*p == 0x1B) { while (*p && *p != 'm') p++; if (*p) p++; }   // skip colour codes
   if ((p[0] == 'E' || p[0] == 'W') && p[1] == ' ' && p[2] == '(' &&
-      (strstr(p, "i2s") || strstr(p, "I2S") || strstr(p, "gdma") || strstr(p, "mic"))) {
+      (strstr(p, "i2s") || strstr(p, "I2S") || strstr(p, "gdma") || strstr(p, "intr") || strstr(p, "mic"))) {
     const char* m = strchr(p, ')'); m = m ? m + 2 : p;               // drop "E (1234) "
-    snprintf(lastDrvErr, sizeof(lastDrvErr), "%s", m);
-    char* e = lastDrvErr + strlen(lastDrvErr);
-    while (e > lastDrvErr && (e[-1] == '\n' || e[-1] == '\r')) *--e = 0;
-    char* esc = strchr(lastDrvErr, 0x1B); if (esc) *esc = 0;
+    char line[120]; snprintf(line, sizeof(line), "%s", m);
+    char* esc = strchr(line, 0x1B); if (esc) *esc = 0;
+    char* e = line + strlen(line); while (e > line && (e[-1] == '\n' || e[-1] == '\r' || e[-1] == ' ')) *--e = 0;
+    // "i2s_std: i2s_channel_init_std_mode(236): msg" -> "i2s_std: msg"
+    char* fn = strstr(line, ": "); char* cl = fn ? strstr(fn + 2, "): ") : nullptr;
+    if (fn && cl && strchr(fn + 2, '(') && strchr(fn + 2, '(') < cl) memmove(fn + 2, cl + 3, strlen(cl + 3) + 1);
+    size_t n = strlen(lastDrvErr);
+    if (n + strlen(line) + 3 < sizeof(lastDrvErr)) snprintf(lastDrvErr + n, sizeof(lastDrvErr) - n, "%s%s", n ? "; " : "", line);
   }
   return vprintf(fmt, ap);
 }
@@ -205,12 +209,27 @@ bool micStartI2S() {
   return false;
 }
 
+// I2S opened before M5.begin(): claims its DMA channel before the display and the rest of the board start
+bool earlyI2S = false;
 bool micStart() {
+  if (earlyI2S) {
+    i2s_channel_disable(rxCh);                          // board start-up may have re-muxed the pins: route them again
+    i2s_std_gpio_config_t g = {};
+    g.mclk = GPIO_NUM_18; g.bclk = GPIO_NUM_17; g.ws = GPIO_NUM_15; g.dout = I2S_GPIO_UNUSED; g.din = GPIO_NUM_16;
+    i2s_channel_reconfig_std_gpio(rxCh, &g);
+    i2s_channel_enable(rxCh);
+    codecInit(true);
+    micPath = MIC_I2S;
+    if (waitHops(600)) { strcpy(micDiag, "I2SE"); return true; }
+    micPath = MIC_NONE; strcpy(micDiag, "early I2S no audio");
+    Serial.println("# early I2S opened but no audio, trying the other paths");
+  }
+  lastDrvErr[0] = 0;
   if (micStartM5()) { strcpy(micDiag, "M5"); return true; }
   Serial.printf("# M5 mic path failed: %s, trying direct I2S\n", micDiag);
   char first[24]; snprintf(first, sizeof(first), "%s", micDiag);
   if (micStartI2S()) return true;
-  char both[128]; snprintf(both, sizeof(both), "%s | %s%s%s", first, micDiag, lastDrvErr[0] ? " > " : "", lastDrvErr);
+  char both[200]; snprintf(both, sizeof(both), "%s | %s%s%s", first, micDiag, lastDrvErr[0] ? " > " : "", lastDrvErr);
   strcpy(micDiag, both);
   return false;
 }
@@ -294,6 +313,8 @@ void buttons(uint32_t now) {
 void setup() {
   esp_log_set_vprintf(logHook);                         // keep the driver's error text for the screen
   esp_log_level_set("*", ESP_LOG_WARN);
+  earlyI2S = i2sOpen(true, 'E');                        // before anything else grabs DMA / interrupts
+  char earlyErr[160]; snprintf(earlyErr, sizeof(earlyErr), "%s", earlyI2S ? "" : lastDrvErr);
   auto cfg = M5.config();
   cfg.internal_spk = false;                             // the speaker shares the mic's I2S pins
   M5.begin(cfg);
@@ -314,7 +335,11 @@ void setup() {
   micQ = xQueueCreate(NBUF, sizeof(Hop));
   if (!linkInit()) Serial.println("# ESP-NOW init failed");
   xTaskCreatePinnedToCore(audioTask, "audio", 8192, nullptr, 3, nullptr, 0);
+  if (!earlyI2S) Serial.printf("# early I2S failed: %s | %s\n", micDiag, earlyErr);
   micOk = micStart();
+  if (!micOk && !earlyI2S) {                            // add the early attempt's error too
+    char t[200]; snprintf(t, sizeof(t), "%s || early: %s", micDiag, earlyErr[0] ? earlyErr : "?"); strcpy(micDiag, t);
+  }
   if (!micOk && mode == MODE_CONDUCT) {                 // no mic: don't sit on a fake 120 BPM, follow the rig instead
     mode = MODE_FOLLOW; micFallback = true;             // not saved: next boot tries the mic again
   }
