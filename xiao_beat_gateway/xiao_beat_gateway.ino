@@ -3,6 +3,8 @@
 //   - USB MIDI clock (24 per beat) + Start on the downbeat / Stop when the beat is gone + a note per beat
 //     -> Ableton, Traktor, Rekordbox, Resolume, drum machines... no driver, no app needed.
 //   - USB serial text lines (one per beat) -> the Pi hub script (Ableton Link + OSC + web/JSON) and TrackID.
+//   - v1.1: it is also a radio for whatever it's plugged into. The Tab5 Command Center sends "F,<bpm10>,<beat>,<hue>"
+//     to put a beat on the link (takeover), and reads raw R/A/F/H lines for every frame heard.
 // It follows whatever is on the beat link: the W10 conductor (heard by the Heltec bridge) or a booth controller
 // (StickS3 / M5Dial / CYD) during a takeover. Between beats it free-runs, so the MIDI clock never stutters.
 // LED: amber flash on every beat, longer on beat 1; a short blip every 2 s while waiting for a beat.
@@ -26,7 +28,7 @@
 #include "link.h"
 #include "gateway.h"
 
-#define FW_VERSION "1.0"
+#define FW_VERSION "1.1"
 #define LED_PIN 21                  // XIAO user LED, active LOW
 
 // How long after the real beat each kind of frame reaches us (the gateway reports beat time = arrival - this).
@@ -57,6 +59,9 @@ bool espnowInit() {
   WiFi.mode(WIFI_STA); WiFi.disconnect();
   esp_wifi_set_channel(LINK_ESPNOW_CH, WIFI_SECOND_CHAN_NONE);
   if (esp_now_init() != ESP_OK) return false;
+  esp_now_peer_info_t peer = {};
+  memset(peer.peer_addr, 0xFF, 6); peer.channel = LINK_ESPNOW_CH; peer.encrypt = false;
+  esp_now_add_peer(&peer);
 #if ESP_ARDUINO_VERSION_MAJOR >= 3
   esp_now_register_recv_cb([](const esp_now_recv_info_t*, const uint8_t* d, int len) { onFrame(d, len); });
 #else
@@ -127,8 +132,35 @@ void beat(int64_t tb, uint8_t no, bool real) {
   lastBeatUs = tb; lastReal = real; beatNo = no;
 }
 
+// ---------------- sending (takeover from the host) ----------------
+const uint8_t BCAST[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+int64_t lastFireUs = 0;
+uint32_t fired = 0;
+
+void fire(uint16_t b10, uint8_t no, uint8_t h) {
+  LinkFrame f = linkFrame(LF_FIRE);
+  f.bpm10 = b10; f.beat = no & 3; f.hue = h;
+  esp_now_send(BCAST, (const uint8_t*)&f, sizeof(f));
+  lastFireUs = esp_timer_get_time(); fired++;
+}
+
+// raw line for every frame, so a host can run its own logic (the Tab5 does)
+void raw(const LinkFrame& f) {
+  switch (f.type) {
+    case LF_RELAY: USBSerial.printf("R,%u,%.1f,%u,%u,%d,%.1f,%u\n", f.seq, f.bpm10 / 10.0f, f.beat & 3, f.hue, f.rssi, f.snr4 / 4.0f, f.flags & LINK_FLAG_ECHO ? 1 : 0); break;
+    case LF_ACK:   USBSerial.printf("A,%u,%.1f,%u,%u,%lu\n", f.seq, f.bpm10 / 10.0f, f.beat & 3, f.hue, (unsigned long)f.count); break;
+    case LF_FIRE:  USBSerial.printf("F,%.1f,%u,%u\n", f.bpm10 / 10.0f, f.beat & 3, f.hue); break;
+    case LF_HELLO: USBSerial.printf("H,%u,%lu\n", f.flags & 1, (unsigned long)f.count); break;
+  }
+}
+
 void handle(const Ev& e) {
   const LinkFrame& f = e.f;
+  raw(f);
+  if (f.type == LF_ACK && lastFireUs && e.t - lastFireUs < 150000) {   // the bridge sent our beat: mirror it for consoles
+    LinkFrame ef = f; ef.type = LF_RELAY; ef.flags = LINK_FLAG_ECHO; ef.rssi = 0; ef.snr4 = 0; ef.count = 0;
+    esp_now_send(BCAST, (const uint8_t*)&ef, sizeof(ef));
+  }
   if (f.type == LF_HELLO) { bridgeHelloUs = e.t; bridgeRadio = f.flags & 1; bridgeHeard = f.count; return; }
   if (f.type != LF_RELAY && f.type != LF_ACK && f.type != LF_FIRE) return;
   if (f.bpm10 < 300 || f.bpm10 > 3000) return;                 // 30-300 BPM only
@@ -172,7 +204,14 @@ void saveCfg() {
 }
 
 void command(String c) {
-  c.trim(); c.toLowerCase();
+  c.trim();
+  if (c.startsWith("F,")) {                                     // F,<bpm x10>,<beat 0-3>,<hue>: put a beat on the link
+    int a = c.indexOf(',', 2), b = c.indexOf(',', a + 1);
+    long b10 = c.substring(2, a).toInt();
+    if (a > 0 && b > 0 && b10 >= 300 && b10 <= 3000) fire(b10, c.substring(a + 1, b).toInt(), c.substring(b + 1).toInt());
+    return;
+  }
+  c.toLowerCase();
   if (c == "?" || c == "status") {
     status();
     USBSerial.printf("# Beat Gateway v%s | notes %d (ch %u) | transport %d | net 0x%02X ch %d | MAC %s\n", FW_VERSION,
@@ -180,7 +219,7 @@ void command(String c) {
   } else if (c.startsWith("notes ")) { cfgNotes = c.endsWith("1") || c.endsWith("on"); saveCfg(); USBSerial.printf("# notes %d\n", cfgNotes); }
   else if (c.startsWith("transport ")) { cfgTransport = c.endsWith("1") || c.endsWith("on"); saveCfg(); USBSerial.printf("# transport %d\n", cfgTransport); }
   else if (c.startsWith("channel ")) { int ch = c.substring(8).toInt(); if (ch >= 1 && ch <= 16) { cfgChannel = ch; saveCfg(); } USBSerial.printf("# channel %u\n", cfgChannel); }
-  else if (c.length()) USBSerial.println("# commands: ?  notes on|off  transport on|off  channel 1-16");
+  else if (c.length()) USBSerial.println("# commands: ?  notes on|off  transport on|off  channel 1-16  F,<bpm x10>,<beat 0-3>,<hue>");
 }
 
 // ---------------- setup / loop ----------------

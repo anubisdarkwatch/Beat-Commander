@@ -1,0 +1,9 @@
+{
+  "additionalFiles": "../..,../..,../..",
+  "compiler.optimization_flags": "-Os",
+  "customBuildProperties": "build.warn_data_percentage=75",
+  "fqbn": "m5stack:esp32:m5stack_tab5",
+  "hardwareFolders": "/root/.arduino15/packages",
+  "otherLibrariesFolders": "/root/Arduino/libraries",
+  "sketchLocation": "/home/claude/src/W10-Beat-Conductor/tab5_command_center"
+}

@@ -8,7 +8,7 @@ flash in sync, for DJ sets, stages or a crowd holding boards across a venue.
 
 Companion project: [W10-ISM-Waterfall](https://github.com/anubisdarkwatch/W10-ISM-Waterfall).
 
-**New:** the [Beat Gateway](#beat-gateway-xiao-esp32-s3--beat-hub): a XIAO ESP32-S3 on USB that turns the beat link into MIDI clock, Ableton Link and OSC.
+**New:** the [Beat Command Center](#beat-command-center-m5stack-tab5) on the Tab5's 5" screen, and the [Beat Gateway](#beat-gateway-xiao-esp32-s3--beat-hub): a XIAO ESP32-S3 on USB that turns the beat link into MIDI clock, Ableton Link and OSC.
 Also: a touchscreen [booth console](#booth-console-cyd--heltec-v3-bridge) on a CYD that shows the beat link live and can take over the beat.
 
 | W10 conductor (mic, LoRa TX) | Heltec V3 follower (LoRa RX) |
@@ -39,7 +39,8 @@ Every board in the system has a ready-made `.bin`:
 | CYD (ESP32-2432S028R) | Booth console | [`firmware/CYD-Beat-Console-v1.0.2.bin`](firmware/CYD-Beat-Console-v1.0.2.bin) |
 | M5Stack M5Dial | Handheld takeover controller | [`firmware/M5Dial-Beat-Dial-v1.0.bin`](firmware/M5Dial-Beat-Dial-v1.0.bin) |
 | M5Stack StickS3 | Pocket conductor (mic) / beat badge | [`firmware/StickS3-Pocket-Conductor-v1.0.5.bin`](firmware/StickS3-Pocket-Conductor-v1.0.5.bin) |
-| Seeed XIAO ESP32-S3 | Beat Gateway (USB MIDI clock + feed for Beat Hub) | [`firmware/Beat-Gateway-XIAO-S3-v1.0.bin`](firmware/Beat-Gateway-XIAO-S3-v1.0.bin) |
+| Seeed XIAO ESP32-S3 | Beat Gateway (USB MIDI clock + feed for Beat Hub) | [`firmware/Beat-Gateway-XIAO-S3-v1.1.bin`](firmware/Beat-Gateway-XIAO-S3-v1.1.bin) |
+| M5Stack Tab5 | Beat Command Center (big touch console, uses the Beat Gateway as its radio) | [`firmware/Tab5-Beat-Command-v1.0.bin`](firmware/Tab5-Beat-Command-v1.0.bin) |
 
 If **Connect** fails, put the board in download mode and try again: hold **BOOT** (Heltec: **PRG**) while
 plugging in, or hold it, tap **RST**, then release. On the W10, turn the LoRa beat link on with a 1 s hold of
@@ -267,6 +268,35 @@ PSRAM **Disabled**, USB CDC On Boot **Enabled**. Library **M5Unified** (installs
 `sticks3_pocket_conductor/beat_engine.h`, copied from the W10 sketch. Screens are in `ui.h`; preview them with
 `tools/build_preview.sh <M5GFX folder> <out folder> preview_stick.cpp`.
 
+## Beat Command Center: M5Stack Tab5
+
+![Beat Command Center screens](docs/tab5-screens.png)
+
+The booth console on the Tab5's 5" 1280x720 touchscreen. It follows the beat link like the CYD and the Dial,
+and can take the beat over.
+
+- **Center:** a beat ring (beat 1 at the top) that flashes in the conductor's colour, a huge BPM, the bar count,
+  and a 2-minute tempo graph.
+- **Left:** big pads: **TAKE / RELEASE**, **TAP** (tapping while following takes over), tempo **-/+** 0.1 BPM (hold to
+  repeat), and **nudge** the beat 10 ms early or late.
+- **Right:** source (W10, booth controller or TAB5), RSSI / SNR, beats in, lost, sent, nudge, gateway.
+- **Header:** LIVE / BOOTH / HOLD / TAKEOVER / CLASH / NO GATEWAY, gateway and bridge lights, battery.
+  Hold the header for 2 s to turn the screen upside down (remembered).
+
+**Radio:** the Tab5's Wi-Fi chip can't do ESP-NOW, so it uses the [Beat Gateway](#beat-gateway-xiao-esp32-s3--beat-hub)
+(v1.1 or newer) as its radio. Plug the XIAO into the Tab5's **USB-A** port with a USB-A to USB-C cable; the Tab5 powers it.
+Every frame on the link reaches the Tab5 as a line of text, and in TAKE the Tab5 sends one beat per line back. The
+Heltec bridge then puts each beat on LoRa as usual. The XIAO keeps its own jobs too, so a laptop or Pi isn't needed for this.
+
+**Flash it:** [Flash Station](https://anubisdarkwatch.github.io/flash/) (Beat Command Center card), or the `.bin` above at
+0x0. If it won't connect, hold the Tab5's reset button for about 2 s until the green LED blinks fast (download mode),
+then try again.
+
+**Build from source:** Arduino IDE 2.x, board package **M5Stack** 3.3.x, board **M5Tab5**. Libraries **M5Unified**
+(0.2.23+) and **M5GFX** (0.2.30+). The brand fonts are baked in as anti-aliased VLW fonts
+(`tools/mkfonts_tab5.py`). Preview the screens on a Linux PC with
+`tools/build_preview.sh <M5GFX folder> <out folder> preview_tab5.cpp`.
+
 ## Beat Gateway: XIAO ESP32-S3 + Beat Hub
 
 ![Beat Hub page](docs/beat-hub.jpg)
@@ -315,9 +345,12 @@ USB serial, one line per event (any baud rate):
 |---|---|
 | `B,<beat 1-4>,<bpm>,<AIR\|BOOTH>,<us since the beat>,<seq>,<hue>,<rssi>` | A beat. AIR = the W10 on LoRa, BOOTH = a controller. |
 | `S,<LOCK\|FREE\|WAIT>,<bpm>,<source>,<beats>,<RUN\|STOP>,<bridge>` | Status, once a second |
+| `R,<seq>,<bpm>,<beat 0-3>,<hue>,<rssi>,<snr>,<echo>` / `A,...` / `F,...` / `H,<radio>,<heard>` | v1.1: every raw frame heard (relay, ack, fire, bridge hello) |
 | `# ...` | Info |
 
 Commands: `?` (status), `notes on|off`, `transport on|off` (MIDI Start/Stop), `channel 1-16`. They're saved.
+v1.1 adds `F,<bpm x10>,<beat 0-3>,<hue>`: put a beat on the link, as a takeover controller does. The bridge transmits
+it on LoRa, and the gateway mirrors the bridge's confirmation for consoles. The Tab5 Command Center drives the rig this way.
 
 **Build from source:** Arduino IDE 2.x, esp32 by Espressif 3.x, board **XIAO_ESP32S3**, USB Mode
 **USB-OTG (TinyUSB)**, USB CDC On Boot **Disabled**. No extra libraries. Latency figures (how long after the beat each
