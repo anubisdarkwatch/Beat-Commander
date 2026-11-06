@@ -21,7 +21,7 @@
 #include "usbgw.h"
 #include <esp_system.h>
 
-#define FW_VERSION   "1.0.1"
+#define FW_VERSION   "1.0.2"
 
 // ---------- options ----------
 #define LINK_AIR_MS    12     // in TAKE, flash this long after sending (USB + ESP-NOW + LoRa airtime): matches followers
@@ -71,7 +71,9 @@ struct Core {
   uint8_t toast = T_NONE; uint32_t toastUntil = 0;
 };
 Core core;
-portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
+// A mutex, not a spinlock: the beat maths uses floats, and on the ESP32-P4 a task's first float instruction
+// traps (lazy FPU) - with interrupts off inside portENTER_CRITICAL that trap is a panic. (v1.0.1 crashed on the first beat.)
+SemaphoreHandle_t lock;
 QueueHandle_t padQ;                               // pad presses from the UI loop
 struct PadEv { uint8_t pad; bool repeat; };
 
@@ -158,7 +160,7 @@ void controlTask(void*) {
     while (nPad < 4 && xQueueReceive(padQ, &pe[nPad], 0) == pdTRUE) nPad++;
 
     bool fire = false; uint16_t fb10 = 0; uint8_t fbeat = 0, fhue = 0; int sound = 0;
-    portENTER_CRITICAL(&mux);
+    xSemaphoreTake(lock, portMAX_DELAY);
     for (int i = 0; i < nIn; i++) handleFrame(in[i], now);
     for (int i = 0; i < nPad; i++) {
       uint8_t p = pe[i].pad;
@@ -190,7 +192,7 @@ void controlTask(void*) {
       beatAt(now, core.beatPos == 0, core.viaBooth);
       core.flyNext += stepMs();
     }
-    portEXIT_CRITICAL(&mux);
+    xSemaphoreGive(lock);
 
     if (fire) { snprintf(cmd, sizeof(cmd), "F,%u,%u,%u\n", fb10, fbeat, fhue); gw::send(cmd); }
     if (sound) click(sound);
@@ -209,7 +211,7 @@ const char* resetNote = nullptr;
 
 void snapshot(View& v, uint32_t now) {
   v = {};
-  portENTER_CRITICAL(&mux);
+  xSemaphoreTake(lock, portMAX_DELAY);
   v.mode = core.mode;
   v.bridgeOk = core.bridgeSeen && now - core.bridgeMs < 3000;
   v.radioOk = core.radioOk;
@@ -226,7 +228,7 @@ void snapshot(View& v, uint32_t now) {
   v.nudgeMs = core.nudgeMs; v.viaBooth = core.viaBooth; v.flashDown = core.flashDown; v.flashMs = core.flashMs;
   v.tapCount = core.mode == M_TAKE && now - (core.tapCount ? core.tapTimes[core.tapCount - 1] : 0) < 2000 ? core.tapCount : 0;
   v.toast = (int32_t)(core.toastUntil - now) > 0 ? core.toast : T_NONE;
-  portEXIT_CRITICAL(&mux);
+  xSemaphoreGive(lock);
   v.gwOk = gw::connected();
   if (!v.gwOk && v.mode != M_TAKE) v.link = LS_NOGW;
   v.gwName = gwVersion[0] ? gwVersion : gw::product();
@@ -285,6 +287,7 @@ void setup() {
     ps[i].setColorDepth(16); ps[i].setPsram(true);
     if (!ps[i].createSprite(PANEL[i].w, PANEL[i].h)) Serial.printf("# sprite %d alloc failed\n", i);
   }
+  lock = xSemaphoreCreateMutex();
   rxQ = xQueueCreate(32, sizeof(Frame));
   padQ = xQueueCreate(8, sizeof(PadEv));
   M5.Power.setExtOutput(true, m5::ext_port_mask_t::ext_USB);   // 5 V on the USB-A port for the gateway
