@@ -28,6 +28,7 @@ Every board in the system has a ready-made `.bin`. Chrome or Edge on desktop:
 | Heltec WiFi LoRa 32 V3 | Follower (flashes on the beat) | [`firmware/Beat-Follower-HeltecV3-v1.0.bin`](firmware/Beat-Follower-HeltecV3-v1.0.bin) |
 | Heltec WiFi LoRa 32 V3 | Bridge for the booth console | [`firmware/Beat-Bridge-HeltecV3-v1.0.bin`](firmware/Beat-Bridge-HeltecV3-v1.0.bin) |
 | CYD (ESP32-2432S028R) | Booth console | [`firmware/CYD-Beat-Console-v1.0.2.bin`](firmware/CYD-Beat-Console-v1.0.2.bin) |
+| M5Stack M5Dial | Handheld takeover controller | [`firmware/M5Dial-Beat-Dial-v1.0.bin`](firmware/M5Dial-Beat-Dial-v1.0.bin) |
 
 If **Connect** fails, put the board in download mode and try again: hold **BOOT** (Heltec: **PRG**) while
 plugging in, or hold it, tap **RST**, then release. On the W10, turn the LoRa beat link on with a 1 s hold of
@@ -161,7 +162,7 @@ Arduino IDE 2.x, **esp32 by Espressif** core 2.x or 3.x. No extra libraries for 
 | `heltec_v3_espnow_bridge/` | ESP32S3 Dev Module | USB CDC On Boot **Disabled**, PSRAM **Disabled** |
 
 Options at the top of each sketch:
-- `LINK_NET_ID` / `LINK_ESPNOW_CH` in `link.h` (keep both copies identical) to run two rigs side by side.
+- `LINK_NET_ID` / `LINK_ESPNOW_CH` in `link.h` (keep every copy identical) to run two rigs side by side.
 - `PANEL_ST7789 1` for the "2-USB" CYD variant; `PANEL_INVERT` if colours look negative. Mirroring and colour order are set on the device (display check), with `PANEL_MIRROR` / `PANEL_BGR` as the defaults.
 - `LINK_POWER_DBM` on the bridge (takeover TX power, default 10 dBm like the W10).
 - `DEBUG_TOUCH 1` prints raw touch readings.
@@ -177,6 +178,48 @@ Both boards print a log at 115200: the bridge one CSV line per beat (`RX,seq,bpm
 
 `LinkFrame` in `link.h`, 18 bytes: magic `'A','D'`, version 1, net id, type (`R` relay, `H` heartbeat,
 `F` fire, `A` TX ack), then seq, bpm×10, beat, hue, RSSI, SNR×4, flags, count.
+
+## Handheld controller: M5Dial
+
+![Beat Dial screens](docs/dial-screens.png)
+
+The M5Stack M5Dial (round 240×240 touchscreen, rotary knob, 13.56 MHz RFID reader) joins the same ESP-NOW link as
+the CYD console, through the same Heltec V3 bridge. It needs no radio of its own. While following, the ring
+flashes in the conductor's colour with beat 1 at the top. After TAKE, the Dial keeps time itself and the bridge
+transmits each beat on LoRa.
+
+**Flash it:** use [the browser steps](#flash-it-from-the-browser-no-arduino-ide) with `M5Dial-Beat-Dial-v1.0.bin`.
+The M5Dial uses the ESP32-S3's built-in USB, so it normally connects without touching any buttons.
+
+**First boot: enroll.** Scan the tags (or implant) that are allowed to take the beat, up to 4, then press the knob.
+Press the knob without scanning anything to run with the lock off. Hold the knob while powering up to enroll again.
+
+| Control | Action |
+|---|---|
+| Scan an enrolled tag | TAKE: the Dial takes the beat at the W10's current tempo and phase |
+| Press the knob (following) | Lock on: opens a 6 s scan window. Lock off: TAKE |
+| Turn | 0.1 BPM per click, 0.5 BPM when spun fast (takeover only) |
+| Press + turn | Move the beat 10 ms earlier / later per click (takeover only) |
+| Tap the screen | Tap tempo, first tap = downbeat (takeover, or following with the lock off) |
+| Press the knob (takeover) | RELEASE: hand the beat back. The lock applies again. |
+
+Status pill: **WAIT**, **LIVE** (following the W10), **BOOTH** (following another controller's takeover),
+**HOLD**, **TAKE**, **NO LINK**. While the Dial has the beat, a red **W10 ON AIR TOO** banner means the W10 or
+another controller is still transmitting.
+
+The tag lock checks the tag's UID only. It's a booth convenience to stop stray hands, not real security: UIDs can be cloned.
+The reader is polled only while following, so scanning never delays a beat during takeover. Implants with a small
+coil (NExT, xNT) need to sit flat right on the screen, near the middle.
+
+**Works with the CYD console.** During takeover, the Dial re-broadcasts each beat the bridge confirms
+(a `R` relay frame with the `LINK_FLAG_ECHO` flag), so a CYD in follow mode keeps showing the booth's tempo. The CYD
+shows 0 dBm for those beats, since they didn't come over LoRa. If both controllers take over at once, each one
+shows the conflict banner.
+
+**Build from source:** Arduino IDE 2.x, esp32 by Espressif 3.x, board **M5Dial**, library **M5Dial** (installs
+M5Unified and M5GFX). Options at the top of `m5dial_beat_dial.ino`: `ENC_PER_CLICK`, `BRIGHTNESS`, `MAX_TAGS`,
+`CLICK_SOUND`. Serial log at 115200 prints each scanned tag's UID. The screens are in `m5dial_beat_dial/ui.h`.
+`tools/build_preview_dial.sh <M5GFX folder> <out folder>` renders them on a Linux PC (needs SDL2 headers).
 
 ## Hardware notes (W10)
 

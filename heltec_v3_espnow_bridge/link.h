@@ -1,10 +1,11 @@
 // Beat Console link: ESP-NOW frames between the LoRa bridge and the CYD console.
-// Keep this file identical in cyd_beat_console/ and heltec_v3_espnow_bridge/.
+// Keep this file identical in cyd_beat_console/, m5dial_beat_dial/ and heltec_v3_espnow_bridge/.
 #pragma once
 #include <stdint.h>
 
 #define LINK_NET_ID    0x42   // change on both boards to run two setups side by side
 #define LINK_ESPNOW_CH 1      // Wi-Fi channel used for ESP-NOW (both boards)
+#define LINK_FLAG_ECHO 0x02   // RELAY sent by a controller (Dial) mirroring the bridge's ACK, so consoles see booth beats
 
 // Beat packet on the LoRa beat link (from the W10 conductor), unchanged.
 struct __attribute__((packed)) BeatPacket { uint8_t m0, m1; uint8_t seq; uint16_t bpm10; uint8_t beat; uint8_t hue; };
@@ -27,7 +28,7 @@ struct __attribute__((packed)) LinkFrame {
   uint8_t  hue;         // 0..255
   int16_t  rssi;        // RELAY: dBm
   int8_t   snr4;        // RELAY: SNR x 4
-  uint8_t  flags;       // HELLO: bit0 = LoRa radio OK
+  uint8_t  flags;       // HELLO: bit0 = LoRa radio OK. RELAY: LINK_FLAG_ECHO
   uint32_t count;       // HELLO: beat packets heard since boot; ACK: beats sent
 };
 
