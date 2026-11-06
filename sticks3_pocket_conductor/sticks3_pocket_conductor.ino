@@ -15,7 +15,8 @@
 // Switch the W10's LORA TX off before going ON AIR: two conductors on one link collide (CLASH warns you).
 //
 // Built by Anubis Darkwatch with Claude. MIT license.
-// Arduino IDE 2.x, esp32 by Espressif 3.x, board "ESP32S3 Dev Module": Flash 8MB, PSRAM "OPI PSRAM",
+// Arduino IDE 2.x, esp32 by Espressif 3.x, board "ESP32S3 Dev Module": Flash 8MB, PSRAM "Disabled" (with PSRAM on,
+// the I2S driver's DMA bookkeeping can land in PSRAM and the mic refuses to start: "user context not in internal RAM"),
 // USB CDC On Boot "Enabled". Library: M5Unified (pulls in M5GFX).
 
 #include <M5Unified.h>
@@ -26,7 +27,7 @@
 #include <driver/i2s_std.h>
 #include "link.h"
 
-#define FW_VERSION    "v1.0.4"
+#define FW_VERSION    "v1.0.5"
 
 // ---------- options ----------
 #define LINK_AIR_MS    11      // flash this long after sending: matches the followers (LoRa airtime)
@@ -323,8 +324,8 @@ void setup() {
   M5.Display.setRotation(0);                            // portrait, buttons below the screen
   M5.Display.setBrightness(BRIGHTNESS);
   initColors();
-  cv.setColorDepth(16); cv.setPsram(true);
-  if (!cv.createSprite(SW, SH)) { cv.setPsram(false); cv.createSprite(SW, SH); }
+  cv.setColorDepth(16); cv.setPsram(false);              // 65 KB frame buffer in internal RAM
+  if (!cv.createSprite(SW, SH)) Serial.println("# sprite alloc failed");
   splash(); cv.pushSprite(0, 0);
 
   prefs.begin("pocket", false);
