@@ -16,7 +16,15 @@ Companion project: [W10-ISM-Waterfall](https://github.com/anubisdarkwatch/W10-IS
 
 ## Flash it from the browser (no Arduino IDE)
 
-Every board in the system has a ready-made `.bin`. Chrome or Edge on desktop:
+### ⚡ One click: [Flash Station](https://anubisdarkwatch.github.io/flash/)
+
+Open **[anubisdarkwatch.github.io/flash](https://anubisdarkwatch.github.io/flash/)** in Chrome or Edge on desktop,
+find your board's card, click **INSTALL** and pick its port. It always has the newest version, and each card has
+that board's download-mode tip. When it asks about erasing, choose **no** to keep your saved settings.
+
+### Manual (any `.bin`, any version)
+
+Every board in the system has a ready-made `.bin`:
 
 1. Plug the board in over USB, open https://espressif.github.io/esptool-js/, click **Connect** and pick its port.
 2. Set the flash address to **0x0**, choose the file, click **Program**.
