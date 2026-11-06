@@ -107,6 +107,11 @@ void drawFrame(const View& v, uint32_t now) {
   // lower panel
   cv.fillRect(0, 178, SW, SH - 178, COL_PANEL);
   if (v.mode == MODE_CONDUCT) {
+    if (!v.micOk) {                                     // mic diagnostics where the scope would be
+      cv.setFont(&fonts::Font0); cv.setTextColor(COL_RED); cv.setTextDatum(top_left);
+      const char* d = v.micDiag ? v.micDiag : ""; int len = strlen(d), y = 182;
+      for (int k = 0; k < len && y < 226; k += 21, y += 10) { char ln2[22]; snprintf(ln2, sizeof(ln2), "%.21s", d + k); cv.drawString(ln2, 4, y); }
+    }
     // onset scope + level meter
     int base = 214;
     for (int i = 0; i < v.scopeN && i < SW; i++) {
@@ -119,7 +124,7 @@ void drawFrame(const View& v, uint32_t now) {
     cv.drawRect(3, 219, SW - 6, 7, COL_DIM);
     char ln[24];
     const char* path = v.micDiag ? v.micDiag : "";
-    if (!v.micOk) snprintf(ln, sizeof(ln), "%s", path);
+    if (!v.micOk) snprintf(ln, sizeof(ln), "send me the red text");
     else if (v.onAir) snprintf(ln, sizeof(ln), "SENT %lu  G%d %s", (unsigned long)v.sent, v.gain, path);
     else snprintf(ln, sizeof(ln), "MIC GAIN %d  %s", v.gain, path);
     cv.setFont(&fonts::Font2); cv.setTextDatum(middle_center); cv.setTextColor(v.micOk ? COL_GREY : COL_RED); cv.drawString(ln, SCX, 233);

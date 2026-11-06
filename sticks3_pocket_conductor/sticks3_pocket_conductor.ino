@@ -22,10 +22,10 @@
 #include <esp_now.h>
 #include <esp_wifi.h>
 #include <Preferences.h>
-#include <ESP_I2S.h>
+#include <driver/i2s_std.h>
 #include "link.h"
 
-#define FW_VERSION    "v1.0.1"
+#define FW_VERSION    "v1.0.2"
 
 // ---------- options ----------
 #define LINK_AIR_MS    11      // flash this long after sending: matches the followers (LoRa airtime)
@@ -73,8 +73,8 @@ volatile uint32_t hopsIn = 0;
 struct Hop { int16_t* p; uint32_t t; };
 enum MicPath : uint8_t { MIC_NONE, MIC_M5, MIC_I2S };
 uint8_t micPath = MIC_NONE;
-char micDiag[24] = "";
-I2SClass i2s;
+char micDiag[48] = "";
+i2s_chan_handle_t rxCh = nullptr;
 
 void onMicBuffer(void*, void* data, size_t len) {     // capture task: a hop is ready
   Hop h = {(int16_t*)data, millis() - (uint32_t)(len * 1000 / AUD_RATE)};
@@ -88,7 +88,8 @@ void audioTask(void*) {
   Hop h;
   for (;;) {
     if (micPath == MIC_I2S) {                          // blocking reads keep this in step with real time
-      size_t got = i2s.readBytes((char*)raw, HOP * 4);
+      size_t got = 0;
+      if (i2s_channel_read(rxCh, raw, HOP * 4, &got, pdMS_TO_TICKS(100)) != ESP_OK) got = 0;
       int n = got / 4;
       if (n <= 0) { vTaskDelay(1); continue; }
       for (int i = 0; i < n; i++) {                    // mic lands on one slot: sum both (other is ~0)
@@ -134,33 +135,63 @@ bool micStartM5() {
   return true;
 }
 
-// ES8311 set-up from the W10 (16-bit I2S, MCLK from the ESP32, analog mic, PGA up)
-bool micStartI2S() {
-  M5.Mic.end(); delay(20);
-  bool ok = esW(0x00, 0x1F); delay(20);
+// Direct path: ES8311 over I2C + ESP-IDF I2S std driver, so a failure reports the exact esp_err name.
+// Attempt A: ESP32 drives MCLK (W10 set-up). Attempt B: no MCLK, the codec clocks from BCLK.
+void codecInit(bool mclkFromPin) {
+  esW(0x00, 0x1F); delay(20);
   esW(0x00, 0x00); esW(0x00, 0x80);
-  esW(0x01, 0x3F); esW(0x02, 0x00); esW(0x03, 0x10); esW(0x04, 0x10); esW(0x05, 0x00);
+  if (mclkFromPin) { esW(0x01, 0x3F); esW(0x02, 0x00); }
+  else { esW(0x01, 0xBF); esW(0x02, 0x18); }          // MCLK = BCLK, pre-multiply x8 (32 x 16 kHz x 8 = 4.096 MHz)
+  esW(0x03, 0x10); esW(0x04, 0x10); esW(0x05, 0x00);
   esW(0x06, 0x03); esW(0x07, 0x00); esW(0x08, 0xFF);
   esW(0x09, 0x0C); esW(0x0A, 0x0C);                    // 16-bit I2S in/out
   esW(0x0D, 0x01); esW(0x0E, 0x02);                    // analog power, PGA + ADC modulator on
   esW(0x14, 0x1A);                                     // analog mic, PGA up
   esW(0x17, 0xC8);                                     // ADC volume
   esW(0x1C, 0x6A);
-  if (!ok) { strcpy(micDiag, "E6 codec i2c"); return false; }
   setGain(gain);
-  i2s.setPins(17, 15, -1, 16, 18);                     // BCK, WS, DOUT, DIN (mic), MCLK
-  if (!i2s.begin(I2S_MODE_STD, AUD_RATE, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO)) { strcpy(micDiag, "E7 i2s begin"); return false; }
-  micPath = MIC_I2S;
-  if (!waitHops(600)) { strcpy(micDiag, "E8 no audio"); micPath = MIC_NONE; return false; }
+}
+
+bool i2sOpen(bool withMclk, char tag) {
+  if (rxCh) { i2s_channel_disable(rxCh); i2s_del_channel(rxCh); rxCh = nullptr; }
+  i2s_chan_config_t cc = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_AUTO, I2S_ROLE_MASTER);
+  esp_err_t e = i2s_new_channel(&cc, nullptr, &rxCh);
+  if (e != ESP_OK) { snprintf(micDiag, sizeof(micDiag), "%c new %s", tag, esp_err_to_name(e)); rxCh = nullptr; return false; }
+  i2s_std_config_t sc = {};
+  sc.clk_cfg.sample_rate_hz = AUD_RATE; sc.clk_cfg.clk_src = I2S_CLK_SRC_DEFAULT; sc.clk_cfg.mclk_multiple = I2S_MCLK_MULTIPLE_256;
+  sc.slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO);
+  sc.gpio_cfg.mclk = withMclk ? GPIO_NUM_18 : I2S_GPIO_UNUSED;
+  sc.gpio_cfg.bclk = GPIO_NUM_17; sc.gpio_cfg.ws = GPIO_NUM_15;
+  sc.gpio_cfg.dout = I2S_GPIO_UNUSED; sc.gpio_cfg.din = GPIO_NUM_16;
+  e = i2s_channel_init_std_mode(rxCh, &sc);
+  if (e != ESP_OK) { snprintf(micDiag, sizeof(micDiag), "%c init %s", tag, esp_err_to_name(e)); i2s_del_channel(rxCh); rxCh = nullptr; return false; }
+  e = i2s_channel_enable(rxCh);
+  if (e != ESP_OK) { snprintf(micDiag, sizeof(micDiag), "%c enable %s", tag, esp_err_to_name(e)); i2s_del_channel(rxCh); rxCh = nullptr; return false; }
   return true;
+}
+
+bool micStartI2S() {
+  M5.Mic.end(); delay(30);
+  if (!esW(0x00, 0x00)) { strcpy(micDiag, "E6 codec i2c"); return false; }
+  for (int attempt = 0; attempt < 2; attempt++) {
+    bool mclk = attempt == 0; char tag = mclk ? 'A' : 'B';
+    codecInit(mclk);
+    if (!i2sOpen(mclk, tag)) { Serial.printf("# direct I2S %c failed: %s\n", tag, micDiag); continue; }
+    micPath = MIC_I2S;
+    if (waitHops(600)) { snprintf(micDiag, sizeof(micDiag), "I2S%c", tag); return true; }
+    micPath = MIC_NONE;
+    snprintf(micDiag, sizeof(micDiag), "%c no audio", tag);
+    Serial.printf("# direct I2S %c: no audio\n", tag);
+  }
+  return false;
 }
 
 bool micStart() {
   if (micStartM5()) { strcpy(micDiag, "M5"); return true; }
   Serial.printf("# M5 mic path failed: %s, trying direct I2S\n", micDiag);
-  char first[24]; strcpy(first, micDiag);
-  if (micStartI2S()) { strcpy(micDiag, "I2S"); return true; }
-  char both[24]; snprintf(both, sizeof(both), "%.6s/%.6s", first, micDiag); strcpy(micDiag, both);
+  char first[24]; snprintf(first, sizeof(first), "%s", micDiag);
+  if (micStartI2S()) return true;
+  char both[48]; snprintf(both, sizeof(both), "%s | %s", first, micDiag); strcpy(micDiag, both);
   return false;
 }
 
