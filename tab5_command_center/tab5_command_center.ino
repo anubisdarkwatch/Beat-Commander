@@ -21,7 +21,7 @@
 #include "usbgw.h"
 #include <esp_system.h>
 
-#define FW_VERSION   "1.0.2"
+#define FW_VERSION   "1.0.3"
 
 // ---------- options ----------
 #define LINK_AIR_MS    12     // in TAKE, flash this long after sending (USB + ESP-NOW + LoRa airtime): matches followers
@@ -262,6 +262,10 @@ void handleTouch(uint32_t now) {
   }
   if (t.wasReleased() || !t.isPressed()) { heldPad = PAD_NONE; headHoldSince = 0; }
 }
+
+// The big BPM digits are drawn from anti-aliased glyphs of up to ~13 KB, which M5GFX copies onto the stack.
+// The default 8 KB loop stack overflowed on the first beat (v1.0.0-1.0.2), so give the loop task room.
+SET_LOOP_TASK_STACK_SIZE(48 * 1024);
 
 void setup() {
   auto cfg = M5.config();
