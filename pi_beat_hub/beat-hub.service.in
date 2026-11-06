@@ -1,0 +1,14 @@
+[Unit]
+Description=Beat Hub (Beat Gateway -> Ableton Link / OSC / web)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=__USER__
+WorkingDirectory=__APP_DIR__
+ExecStart=__PY__ __APP_DIR__/beat_hub.py
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

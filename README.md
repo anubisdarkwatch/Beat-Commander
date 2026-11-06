@@ -8,7 +8,8 @@ flash in sync, for DJ sets, stages or a crowd holding boards across a venue.
 
 Companion project: [W10-ISM-Waterfall](https://github.com/anubisdarkwatch/W10-ISM-Waterfall).
 
-**New:** a touchscreen [booth console](#booth-console-cyd--heltec-v3-bridge) on a CYD that shows the beat link live and can take over the beat.
+**New:** the [Beat Gateway](#beat-gateway-xiao-esp32-s3--beat-hub): a XIAO ESP32-S3 on USB that turns the beat link into MIDI clock, Ableton Link and OSC.
+Also: a touchscreen [booth console](#booth-console-cyd--heltec-v3-bridge) on a CYD that shows the beat link live and can take over the beat.
 
 | W10 conductor (mic, LoRa TX) | Heltec V3 follower (LoRa RX) |
 |---|---|
@@ -38,6 +39,7 @@ Every board in the system has a ready-made `.bin`:
 | CYD (ESP32-2432S028R) | Booth console | [`firmware/CYD-Beat-Console-v1.0.2.bin`](firmware/CYD-Beat-Console-v1.0.2.bin) |
 | M5Stack M5Dial | Handheld takeover controller | [`firmware/M5Dial-Beat-Dial-v1.0.bin`](firmware/M5Dial-Beat-Dial-v1.0.bin) |
 | M5Stack StickS3 | Pocket conductor (mic) / beat badge | [`firmware/StickS3-Pocket-Conductor-v1.0.5.bin`](firmware/StickS3-Pocket-Conductor-v1.0.5.bin) |
+| Seeed XIAO ESP32-S3 | Beat Gateway (USB MIDI clock + feed for Beat Hub) | [`firmware/Beat-Gateway-XIAO-S3-v1.0.bin`](firmware/Beat-Gateway-XIAO-S3-v1.0.bin) |
 
 If **Connect** fails, put the board in download mode and try again: hold **BOOT** (Heltec: **PRG**) while
 plugging in, or hold it, tap **RST**, then release. On the W10, turn the LoRa beat link on with a 1 s hold of
@@ -264,6 +266,62 @@ starts in FOLLOW so it still syncs with the rig.
 PSRAM **Disabled**, USB CDC On Boot **Enabled**. Library **M5Unified** (installs M5GFX). The beat engine is in
 `sticks3_pocket_conductor/beat_engine.h`, copied from the W10 sketch. Screens are in `ui.h`; preview them with
 `tools/build_preview.sh <M5GFX folder> <out folder> preview_stick.cpp`.
+
+## Beat Gateway: XIAO ESP32-S3 + Beat Hub
+
+![Beat Hub page](docs/beat-hub.jpg)
+
+A Seeed XIAO ESP32-S3 that listens to the beat link over ESP-NOW and plugs into a computer by USB. It hears
+whatever is driving the rig: the W10 (relayed by the Heltec bridge) or a booth controller (StickS3, M5Dial, CYD)
+during a takeover. No radio module or wiring, just the bare XIAO.
+
+**On its own, it's a USB MIDI device called "Beat Gateway".** Plug it into a laptop, Pi or MIDI-capable gear and
+pick it as the MIDI clock source in Ableton, Traktor, Rekordbox, Resolume, a drum machine and so on. No driver, no app.
+- 24 clock ticks per beat, phase-locked to every beat on the link.
+- **Start** on the first downbeat, so the bar lines up. **Stop** when the beat has been gone for 8 beats.
+- If a beat is missed it keeps time on its own, so the clock never stutters.
+- One note per beat on MIDI channel 16 (note 36 on beat 1, 37 on beats 2-4), handy for triggering lights or clips.
+- LED: a flash on every beat, longer on beat 1. A short blip every 2 s means it's waiting for a beat.
+
+**Add the Beat Hub script** (`pi_beat_hub/`) on the computer it's plugged into, and you also get:
+- **Ableton Link.** Every Link app on the same network follows the conductor's tempo and bar.
+- **OSC** to any targets you list: `/beat <1-4> <bpm>`, `/beat/1` to `/beat/4`, `/beat/bpm`, `/beat/bar`.
+- **A live page** at `http://<computer>:8090` (above) and JSON at `/api/state`.
+- **TrackID** (v2.1+) can take its BPM from the conductor instead of its mic. Set `[conductor] url` in its config.
+
+### Set it up
+1. **Flash** the XIAO from [Flash Station](https://anubisdarkwatch.github.io/flash/) (Beat Gateway card), or with the
+   `.bin` above at 0x0. A brand-new XIAO connects straight away. To re-flash later, if the flasher can't connect:
+   hold **B** (BOOT), tap **R** (RESET), let go of B, then INSTALL.
+2. **Plug it in** wherever you want the beat. For MIDI clock alone you're done.
+3. **Beat Hub on a Raspberry Pi** (Zero 2W, 3B, 4, 5; 64-bit Raspberry Pi OS for Ableton Link):
+   ```
+   sudo apt-get install -y git
+   git clone https://github.com/anubisdarkwatch/W10-Beat-Conductor.git
+   cd W10-Beat-Conductor/pi_beat_hub && sudo bash install.sh
+   ```
+   It starts on boot and finds the gateway by its USB name. Edit `config.ini` for OSC targets, then
+   `sudo systemctl restart beat-hub`.
+4. **Beat Hub on a laptop** (Windows, Mac, Linux): `pip install pyserial aalink`, then
+   `python beat_hub.py` in the `pi_beat_hub` folder. Copy `config.example.ini` to `config.ini` first if you want OSC.
+
+On a Pi, the gateway's MIDI port also shows up in ALSA (`aconnect -l`), so you can route its clock to a USB MIDI
+interface with `aconnect`.
+
+### Serial feed
+USB serial, one line per event (any baud rate):
+
+| Line | Meaning |
+|---|---|
+| `B,<beat 1-4>,<bpm>,<AIR\|BOOTH>,<us since the beat>,<seq>,<hue>,<rssi>` | A beat. AIR = the W10 on LoRa, BOOTH = a controller. |
+| `S,<LOCK\|FREE\|WAIT>,<bpm>,<source>,<beats>,<RUN\|STOP>,<bridge>` | Status, once a second |
+| `# ...` | Info |
+
+Commands: `?` (status), `notes on|off`, `transport on|off` (MIDI Start/Stop), `channel 1-16`. They're saved.
+
+**Build from source:** Arduino IDE 2.x, esp32 by Espressif 3.x, board **XIAO_ESP32S3**, USB Mode
+**USB-OTG (TinyUSB)**, USB CDC On Boot **Disabled**. No extra libraries. Latency figures (how long after the beat each
+frame type arrives) are at the top of `xiao_beat_gateway.ino`.
 
 ## Hardware notes (W10)
 
