@@ -29,7 +29,7 @@ Every board in the system has a ready-made `.bin`. Chrome or Edge on desktop:
 | Heltec WiFi LoRa 32 V3 | Bridge for the booth console | [`firmware/Beat-Bridge-HeltecV3-v1.0.bin`](firmware/Beat-Bridge-HeltecV3-v1.0.bin) |
 | CYD (ESP32-2432S028R) | Booth console | [`firmware/CYD-Beat-Console-v1.0.2.bin`](firmware/CYD-Beat-Console-v1.0.2.bin) |
 | M5Stack M5Dial | Handheld takeover controller | [`firmware/M5Dial-Beat-Dial-v1.0.bin`](firmware/M5Dial-Beat-Dial-v1.0.bin) |
-| M5Stack StickS3 | Pocket conductor (mic) / beat badge | [`firmware/StickS3-Pocket-Conductor-v1.0.bin`](firmware/StickS3-Pocket-Conductor-v1.0.bin) |
+| M5Stack StickS3 | Pocket conductor (mic) / beat badge | [`firmware/StickS3-Pocket-Conductor-v1.0.1.bin`](firmware/StickS3-Pocket-Conductor-v1.0.1.bin) |
 
 If **Connect** fails, put the board in download mode and try again: hold **BOOT** (Heltec: **PRG**) while
 plugging in, or hold it, tap **RST**, then release. On the W10, turn the LoRa beat link on with a 1 s hold of
@@ -233,7 +233,7 @@ so a CYD in follow mode shows its tempo. Switch to **FOLLOW** and it becomes a p
 conductor's colour.
 
 **Flash it:** use [the browser steps](#flash-it-from-the-browser-no-arduino-ide) with
-`StickS3-Pocket-Conductor-v1.0.bin`.
+`StickS3-Pocket-Conductor-v1.0.1.bin`.
 
 | Button | CONDUCT | FOLLOW |
 |---|---|---|
@@ -246,6 +246,10 @@ It starts **LOCAL** (beat on screen only). Turn the W10's **LORA TX** off before
 hears the W10, or another controller is sending, the pill turns to **CLASH**. The panel at the bottom shows the onset
 scope (bright ticks = detected hits) and the mic level. If the level bar sits near the end, lower the gain. If it barely
 moves, raise it.
+
+The bottom line also shows which mic path is running: **M5** (M5Unified's mic driver) or **I2S** (a direct
+ES8311 + I2S set-up, used if the first fails). If both fail, it shows **MIC FAILED** and the step codes
+(E1–E8), which are also printed on the serial log at 115200.
 
 **Build from source:** Arduino IDE 2.x, esp32 by Espressif 3.x, board **ESP32S3 Dev Module** with Flash Size 8MB,
 PSRAM **OPI PSRAM**, USB CDC On Boot **Enabled**. Library **M5Unified** (installs M5GFX). The beat engine is in

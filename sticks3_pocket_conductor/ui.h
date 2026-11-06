@@ -9,7 +9,7 @@ enum LinkState : uint8_t { LS_WAIT, LS_LIVE, LS_HOLD };
 struct View {
   uint8_t mode;
   // conduct
-  bool onAir, manual, conflict, bridgeOk; uint32_t sent; float level, conf; int gain; bool micOk;
+  bool onAir, manual, conflict, bridgeOk; uint32_t sent; float level, conf; int gain; bool micOk; const char* micDiag;
   const float* scope; const bool* scopeOn; int scopePos, scopeN;
   // follow
   uint8_t link; bool viaBooth; int rssi; uint32_t lost;
@@ -118,9 +118,11 @@ void drawFrame(const View& v, uint32_t now) {
     cv.fillRect(4, 220, (int)((SW - 8) * lv), 5, lv > 0.9f ? COL_AMB : COL_GRN);
     cv.drawRect(3, 219, SW - 6, 7, COL_DIM);
     char ln[24];
-    if (v.onAir) snprintf(ln, sizeof(ln), "SENT %lu  G%d", (unsigned long)v.sent, v.gain);
-    else snprintf(ln, sizeof(ln), "MIC GAIN %d", v.gain);
-    cv.setFont(&fonts::Font2); cv.setTextDatum(middle_center); cv.setTextColor(COL_GREY); cv.drawString(ln, SCX, 233);
+    const char* path = v.micDiag ? v.micDiag : "";
+    if (!v.micOk) snprintf(ln, sizeof(ln), "%s", path);
+    else if (v.onAir) snprintf(ln, sizeof(ln), "SENT %lu  G%d %s", (unsigned long)v.sent, v.gain, path);
+    else snprintf(ln, sizeof(ln), "MIC GAIN %d  %s", v.gain, path);
+    cv.setFont(&fonts::Font2); cv.setTextDatum(middle_center); cv.setTextColor(v.micOk ? COL_GREY : COL_RED); cv.drawString(ln, SCX, 233);
   } else {
     char l1[24], l2[24];
     if (!v.bridgeOk) { strcpy(l1, "no bridge"); strcpy(l2, "heard"); }

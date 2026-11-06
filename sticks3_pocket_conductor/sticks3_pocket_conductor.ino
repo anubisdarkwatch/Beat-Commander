@@ -22,9 +22,10 @@
 #include <esp_now.h>
 #include <esp_wifi.h>
 #include <Preferences.h>
+#include <ESP_I2S.h>
 #include "link.h"
 
-#define FW_VERSION    "v1.0"
+#define FW_VERSION    "v1.0.1"
 
 // ---------- options ----------
 #define LINK_AIR_MS    11      // flash this long after sending: matches the followers (LoRa airtime)
@@ -61,11 +62,19 @@ struct Follow {
   uint32_t bridgeMs = 0; bool bridgeSeen = false; float frac = 0;
 } fol;
 
-// ================= mic: M5Unified records 8 ms hops into a small ring =================
+// ================= mic =================
+// Path 1: M5Unified's Mic class (records 8 ms hops into a small ring).
+// Path 2 (fallback): drive the ES8311 and I2S directly, the way the W10 does.
+// Whichever path works is shown on the bottom line (M5 / I2S); a failure shows its step code.
 #define NBUF 6
 int16_t micBuf[NBUF][HOP];
 volatile int micNext = 0;
+volatile uint32_t hopsIn = 0;
 struct Hop { int16_t* p; uint32_t t; };
+enum MicPath : uint8_t { MIC_NONE, MIC_M5, MIC_I2S };
+uint8_t micPath = MIC_NONE;
+char micDiag[24] = "";
+I2SClass i2s;
 
 void onMicBuffer(void*, void* data, size_t len) {     // capture task: a hop is ready
   Hop h = {(int16_t*)data, millis() - (uint32_t)(len * 1000 / AUD_RATE)};
@@ -75,27 +84,84 @@ void onMicBuffer(void*, void* data, size_t len) {     // capture task: a hop is 
 }
 
 void audioTask(void*) {
+  static int16_t raw[HOP * 2], mono[HOP];
   Hop h;
   for (;;) {
-    if (xQueueReceive(micQ, &h, portMAX_DELAY) == pdTRUE) processHop(h.p, HOP, h.t);
+    if (micPath == MIC_I2S) {                          // blocking reads keep this in step with real time
+      size_t got = i2s.readBytes((char*)raw, HOP * 4);
+      int n = got / 4;
+      if (n <= 0) { vTaskDelay(1); continue; }
+      for (int i = 0; i < n; i++) {                    // mic lands on one slot: sum both (other is ~0)
+        int32_t v = (int32_t)raw[i * 2] + raw[i * 2 + 1];
+        mono[i] = v > 32767 ? 32767 : (v < -32768 ? -32768 : v);
+      }
+      hopsIn++;
+      processHop(mono, n, millis() - (uint32_t)(n * 1000 / AUD_RATE));
+    } else if (xQueueReceive(micQ, &h, pdMS_TO_TICKS(50)) == pdTRUE) {
+      hopsIn++;
+      processHop(h.p, HOP, h.t);
+    }
   }
 }
 
+bool esW(uint8_t r, uint8_t v) { return M5.In_I2C.writeRegister8(0x18, r, v, 400000); }
+
 void setGain(int g) {
   gain = g & 3; MIC_GATE = GAIN_GATE[gain];
-  M5.In_I2C.writeRegister8(0x18, 0x16, GAIN_REG[gain], 400000);
+  esW(0x16, GAIN_REG[gain]);
   prefs.putUChar("gain", gain);
 }
 
-bool micStart() {
+bool waitHops(uint32_t ms) {
+  uint32_t h0 = hopsIn, t0 = millis();
+  while (millis() - t0 < ms) { if (hopsIn - h0 >= 10) return true; delay(10); }
+  return false;
+}
+
+bool micStartM5() {
+  if (M5.getBoard() != m5::board_t::board_M5StickS3) { snprintf(micDiag, sizeof(micDiag), "E1 board %d", (int)M5.getBoard()); return false; }
   auto mc = M5.Mic.config();
+  if (mc.pin_data_in < 0) { strcpy(micDiag, "E2 no mic pin"); return false; }
   mc.sample_rate = AUD_RATE; mc.noise_filter_level = 0; mc.magnification = 1;
   M5.Mic.config(mc);
   M5.Mic.setBufferReleaseCallback(nullptr, onMicBuffer);
-  if (!M5.Mic.begin()) return false;
+  if (!M5.Mic.begin()) { strcpy(micDiag, "E3 mic begin"); return false; }
   setGain(gain);
   micNext = 2;
-  return M5.Mic.record(micBuf[0], HOP, AUD_RATE) && M5.Mic.record(micBuf[1], HOP, AUD_RATE);
+  if (!M5.Mic.record(micBuf[0], HOP, AUD_RATE) || !M5.Mic.record(micBuf[1], HOP, AUD_RATE)) { strcpy(micDiag, "E4 record"); return false; }
+  micPath = MIC_M5;
+  if (!waitHops(600)) { strcpy(micDiag, "E5 no audio"); micPath = MIC_NONE; return false; }
+  return true;
+}
+
+// ES8311 set-up from the W10 (16-bit I2S, MCLK from the ESP32, analog mic, PGA up)
+bool micStartI2S() {
+  M5.Mic.end(); delay(20);
+  bool ok = esW(0x00, 0x1F); delay(20);
+  esW(0x00, 0x00); esW(0x00, 0x80);
+  esW(0x01, 0x3F); esW(0x02, 0x00); esW(0x03, 0x10); esW(0x04, 0x10); esW(0x05, 0x00);
+  esW(0x06, 0x03); esW(0x07, 0x00); esW(0x08, 0xFF);
+  esW(0x09, 0x0C); esW(0x0A, 0x0C);                    // 16-bit I2S in/out
+  esW(0x0D, 0x01); esW(0x0E, 0x02);                    // analog power, PGA + ADC modulator on
+  esW(0x14, 0x1A);                                     // analog mic, PGA up
+  esW(0x17, 0xC8);                                     // ADC volume
+  esW(0x1C, 0x6A);
+  if (!ok) { strcpy(micDiag, "E6 codec i2c"); return false; }
+  setGain(gain);
+  i2s.setPins(17, 15, -1, 16, 18);                     // BCK, WS, DOUT, DIN (mic), MCLK
+  if (!i2s.begin(I2S_MODE_STD, AUD_RATE, I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO)) { strcpy(micDiag, "E7 i2s begin"); return false; }
+  micPath = MIC_I2S;
+  if (!waitHops(600)) { strcpy(micDiag, "E8 no audio"); micPath = MIC_NONE; return false; }
+  return true;
+}
+
+bool micStart() {
+  if (micStartM5()) { strcpy(micDiag, "M5"); return true; }
+  Serial.printf("# M5 mic path failed: %s, trying direct I2S\n", micDiag);
+  char first[24]; strcpy(first, micDiag);
+  if (micStartI2S()) { strcpy(micDiag, "I2S"); return true; }
+  char both[24]; snprintf(both, sizeof(both), "%.6s/%.6s", first, micDiag); strcpy(micDiag, both);
+  return false;
 }
 
 // ================= ESP-NOW =================
@@ -197,7 +263,7 @@ void setup() {
   xTaskCreatePinnedToCore(audioTask, "audio", 8192, nullptr, 3, nullptr, 0);
   micOk = micStart();
   Serial.printf("# display %dx%d\n", M5.Display.width(), M5.Display.height());
-  Serial.printf("# mic %s | gain %d | mode %s | ESP-NOW ch %d net 0x%02X | MAC %s\n", micOk ? "ok" : "FAILED", gain,
+  Serial.printf("# mic %s (%s) | board %d | gain %d | mode %s | ESP-NOW ch %d net 0x%02X | MAC %s\n", micOk ? "ok" : "FAILED", micDiag, (int)M5.getBoard(), gain,
                 mode == MODE_CONDUCT ? "CONDUCT" : "FOLLOW", LINK_ESPNOW_CH, LINK_NET_ID, WiFi.macAddress().c_str());
   delay(900);
   nextBeat = millis() + 500;
@@ -243,7 +309,7 @@ void loop() {
     v.toastGain = (int32_t)(gainToastUntil - now) > 0;
     if (mode == MODE_CONDUCT) {
       v.onAir = onAir; v.manual = now < tapLock; v.conflict = onAir && (int32_t)(conflictUntil - now) > 0;
-      v.sent = acks; v.level = level; v.conf = conf; v.gain = gain; v.micOk = micOk;
+      v.sent = acks; v.micDiag = micDiag; v.level = level; v.conf = conf; v.gain = gain; v.micOk = micOk;
       v.scope = onsetHistory; v.scopeOn = ohOnset; v.scopePos = ohPos; v.scopeN = SCOPE_N;
       v.bpm = bpm; v.beatPos = beatPosShown; v.hue = hue;
     } else {
@@ -263,6 +329,8 @@ void loop() {
       Serial.printf("bpm %.1f  est %.1f  conf %.2f  onsets/s %d  level %.4f  gain %d  %s  %s  sent %lu ack %lu\n",
                     bpm, bpmEst, conf, onsetCount, level, gain, now < tapLock ? "TAP" : "MIC", onAir ? "ON AIR" : "local",
                     (unsigned long)sent, (unsigned long)acks);
+    else Serial.printf("# follow | mic %s\n", micDiag);
+    if (!micOk) Serial.printf("# MIC FAILED: %s (board %d)\n", micDiag, (int)M5.getBoard());
     onsetCount = 0;
   }
   delay(1);
