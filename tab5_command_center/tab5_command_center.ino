@@ -19,8 +19,9 @@
 #include <Preferences.h>
 #include "ui.h"
 #include "usbgw.h"
+#include <esp_system.h>
 
-#define FW_VERSION   "1.0"
+#define FW_VERSION   "1.0.1"
 
 // ---------- options ----------
 #define LINK_AIR_MS    12     // in TAKE, flash this long after sending (USB + ESP-NOW + LoRa airtime): matches followers
@@ -204,6 +205,7 @@ float hist[HIST_N]; int histPos = 0; uint32_t histSec = 0;
 uint8_t heldPad = PAD_NONE; uint32_t heldSince = 0, lastRepeat = 0;
 uint32_t headHoldSince = 0; bool flipped = false;
 Preferences prefs;
+const char* resetNote = nullptr;
 
 void snapshot(View& v, uint32_t now) {
   v = {};
@@ -235,6 +237,7 @@ void snapshot(View& v, uint32_t now) {
   v.battery = bat; v.charging = chg;
   v.hist = hist; v.histPos = histPos;
   v.pressed = heldPad;
+  v.note = resetNote;
 }
 
 void handleTouch(uint32_t now) {
@@ -263,6 +266,13 @@ void setup() {
   M5.begin(cfg);
   Serial.begin(115200);
   Serial.println("# Beat Command Center (Tab5) v" FW_VERSION);
+  switch (esp_reset_reason()) {                        // say why the last run ended, if it wasn't a normal start
+    case ESP_RST_BROWNOUT: resetNote = "last restart: POWER DIP (brownout)"; break;
+    case ESP_RST_PANIC:    resetNote = "last restart: CRASH (panic)"; break;
+    case ESP_RST_INT_WDT: case ESP_RST_TASK_WDT: case ESP_RST_WDT: resetNote = "last restart: CRASH (watchdog)"; break;
+    default: break;
+  }
+  if (resetNote) Serial.printf("# %s\n", resetNote);
   prefs.begin("beatcmd", false);
   flipped = prefs.getBool("flip", false);
   if (M5.Display.width() < M5.Display.height()) M5.Display.setRotation(M5.Display.getRotation() ^ 1);   // landscape
@@ -277,7 +287,7 @@ void setup() {
   }
   rxQ = xQueueCreate(32, sizeof(Frame));
   padQ = xQueueCreate(8, sizeof(PadEv));
-  M5.Power.setUsbOutput(true);                         // 5 V on the USB-A port for the gateway
+  M5.Power.setExtOutput(true, m5::ext_port_mask_t::ext_USB);   // 5 V on the USB-A port for the gateway
   if (!gw::begin(onGatewayLine)) Serial.println("# USB host failed to start");
   xTaskCreatePinnedToCore(controlTask, "control", 6144, nullptr, 5, nullptr, 1);
 }

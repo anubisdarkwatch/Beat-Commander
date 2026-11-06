@@ -28,7 +28,7 @@
 #include "link.h"
 #include "gateway.h"
 
-#define FW_VERSION "1.1"
+#define FW_VERSION "1.2"
 #define LED_PIN 21                  // XIAO user LED, active LOW
 
 // How long after the real beat each kind of frame reaches us (the gateway reports beat time = arrival - this).
@@ -57,6 +57,7 @@ void onFrame(const uint8_t* d, int len) {
 
 bool espnowInit() {
   WiFi.mode(WIFI_STA); WiFi.disconnect();
+  WiFi.setTxPower(WIFI_POWER_8_5dBm);   // v1.2: gentle on weak USB ports (Tab5); plenty for a bridge in the same booth
   esp_wifi_set_channel(LINK_ESPNOW_CH, WIFI_SECOND_CHAN_NONE);
   if (esp_now_init() != ESP_OK) return false;
   esp_now_peer_info_t peer = {};
@@ -238,6 +239,7 @@ void setup() {
   USB.manufacturerName("Anubis Darkwatch");
   USB.begin();
 
+  delay(1500);                          // v1.2: let the host finish with USB before the radio's start-up current
   bool ok = espnowInit();
   delay(200);
   USBSerial.printf("# Beat Gateway v%s | ESP-NOW ch %d %s\n", FW_VERSION, LINK_ESPNOW_CH, ok ? "listening" : "FAILED");

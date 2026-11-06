@@ -31,6 +31,7 @@ struct View {
   const float* hist; int histPos;            // ring buffer of HIST_N samples, 0 = no beat that second
   uint8_t pressed;                           // pad held down right now (PAD_NONE if none)
   uint8_t toast;
+  const char* note;                          // shown under the ring, e.g. why the Tab5 last restarted
 };
 
 // ------------------------------------------------------------------ colours
@@ -198,6 +199,7 @@ void drawCenter(LGFX_Sprite& s, const View& v, uint32_t now) {
     default: break;
   }
   text(s, &fMono, who, RCX, RCY + 122, v.link == LS_TAKE ? C_PURP : C_AMB_D, middle_center);
+  if (v.note) text(s, &fMono, v.note, RCX, RCY + 152, C_RED, middle_center);
   if (active) {
     char b[24]; snprintf(b, sizeof(b), "BAR %lu", (unsigned long)v.bars); text(s, &fH2, b, RCX, RCY - 112, C_AMB_D, middle_center);
   }
