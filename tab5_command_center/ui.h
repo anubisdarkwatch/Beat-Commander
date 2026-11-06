@@ -18,13 +18,15 @@ const Rect PAD[PAD_COUNT] = {
   {24, 96, 288, 120}, {24, 232, 288, 164}, {24, 432, 136, 104}, {176, 432, 136, 104}, {24, 584, 136, 104}, {176, 584, 136, 104}};
 enum Toast : uint8_t { T_NONE, T_TAKE, T_RELEASE, T_FOLLOW_ONLY };
 
-constexpr int HIST_N = 120;                  // BPM history: one sample a second, 2 minutes
+constexpr int HIST_N = 120;
+constexpr int DBG_N = 16;                    // debug view: last raw lines from the gateway                  // BPM history: one sample a second, 2 minutes
 
 struct View {
   uint8_t mode, link;
   bool gwOk, bridgeOk, radioOk, conflict;
   const char* gwName;
-  uint32_t framesGot, framesSent;            // link frames received over USB / heard by the gateway's radio
+  uint32_t framesGot, framesSent;
+  bool debug; const char (*dbg)[40]; uint32_t dbgCount;            // link frames received over USB / heard by the gateway's radio
   float bpm; uint8_t beatPos, hue; uint32_t bars;
   int rssi; float snr; uint32_t rx, lost, sent, fail; int nudgeMs; bool viaBooth;
   uint32_t flashMs; bool flashDown;
@@ -250,6 +252,15 @@ void stat(LGFX_Sprite& s, int y, const char* label, const char* val, uint16_t co
 void drawRight(LGFX_Sprite& s, const View& v) {
   s.fillScreen(C_BG);
   s.drawFastVLine(0, 0, s.height(), C_LINE);
+  if (v.debug && v.dbg) {                            // raw frames, newest at the bottom (hold 1 s to close)
+    text(s, &fH2, "LINK FRAMES", 24, 20, C_AMB_D, middle_left);
+    int n = v.dbgCount < (uint32_t)DBG_N ? v.dbgCount : DBG_N;
+    for (int i = 0; i < n; i++) {
+      const char* l = v.dbg[(v.dbgCount - n + i) % DBG_N];
+      text(s, &fMono, l, 16, 56 + i * 36, l[0] ? C_TXT : C_FAINT, middle_left);
+    }
+    return;
+  }
   bool take = v.mode == M_TAKE;
   char b[32];
   const char* src = v.link == LS_TAKE ? "TAB5" : (v.link == LS_LIVE || v.link == LS_HOLD) ? (v.viaBooth ? "BOOTH" : "W10") : "-";
@@ -283,4 +294,4 @@ uint32_t hashLeft(const View& v) { uint32_t h = 2166136261u; h = mix(h, v.mode);
 uint32_t hashRight(const View& v) { uint32_t h = 2166136261u; h = mix(h, v.mode); h = mix(h, v.link); h = mix(h, v.viaBooth); h = mix(h, v.rssi);
   h = mix(h, (uint32_t)lroundf(v.snr * 4)); h = mix(h, v.rx); h = mix(h, v.lost); h = mix(h, v.sent); h = mix(h, v.fail > 2);
   h = mix(h, v.nudgeMs); h = mix(h, v.gwOk); h = mix(h, v.bridgeOk); h = mix(h, (uint32_t)(uintptr_t)v.gwName);
-  h = mix(h, v.framesSent); return h; }
+  h = mix(h, v.framesSent); h = mix(h, v.debug); if (v.debug) h = mix(h, v.dbgCount); return h; }

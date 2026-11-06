@@ -21,7 +21,7 @@
 #include "usbgw.h"
 #include <esp_system.h>
 
-#define FW_VERSION   "1.0.4"
+#define FW_VERSION   "1.0.5"
 
 // ---------- options ----------
 #define LINK_AIR_MS    12     // in TAKE, flash this long after sending (USB + ESP-NOW + LoRa airtime): matches followers
@@ -33,7 +33,14 @@
 struct Frame { char type; uint8_t seq, beat, hue, echo, radio; uint16_t bpm10; int16_t rssi; float snr; uint32_t count; };
 QueueHandle_t rxQ;
 char gwVersion[40] = "";
-volatile uint32_t framesGot = 0, framesSent = 0;   // frames that reached the Tab5 / frames the gateway heard (from its S line)
+volatile uint32_t framesGot = 0, framesSent = 0;
+// last raw frame lines from the gateway, for the debug view (hold the stats panel 1 s)
+char dbgLines[DBG_N][40]; volatile uint32_t dbgCount = 0;
+void logLine(const char* l) {
+  char* d = dbgLines[dbgCount % DBG_N];
+  snprintf(d, 40, "%lu %s", (unsigned long)(millis() % 10000), l);
+  dbgCount++;
+}   // frames that reached the Tab5 / frames the gateway heard (from its S line)
 
 static uint16_t b10(const char* s) { return (uint16_t)lroundf(atof(s) * 10); }
 
@@ -56,6 +63,7 @@ void onGatewayLine(const char* line) {           // runs in the USB task
     default: return;
   }
   framesGot++;
+  logLine(line);
   xQueueSend(rxQ, &f, 0);
 }
 
@@ -208,7 +216,7 @@ M5Canvas ps[P_COUNT];
 uint32_t lastHash[P_COUNT];
 float hist[HIST_N]; int histPos = 0; uint32_t histSec = 0;
 uint8_t heldPad = PAD_NONE; uint32_t heldSince = 0, lastRepeat = 0;
-uint32_t headHoldSince = 0; bool flipped = false;
+uint32_t headHoldSince = 0, statsHoldSince = 0; bool flipped = false, debugView = false;
 Preferences prefs;
 const char* resetNote = nullptr;
 
@@ -236,6 +244,7 @@ void snapshot(View& v, uint32_t now) {
   if (!v.gwOk && v.mode != M_TAKE) v.link = LS_NOGW;
   v.gwName = gwVersion[0] ? gwVersion : gw::product();
   v.framesGot = framesGot; v.framesSent = framesSent;
+  v.debug = debugView; v.dbg = dbgLines; v.dbgCount = dbgCount;
   static int bat = -1; static bool chg = false; static uint32_t batMs = 0;
   if (!batMs || now - batMs > 3000) {                  // I2C reads: only every few seconds
     batMs = now | 1; bat = M5.Power.getBatteryLevel(); chg = M5.Power.isCharging() == m5::Power_Class::is_charging;
@@ -253,18 +262,20 @@ void handleTouch(uint32_t now) {
     for (int i = 0; i < PAD_COUNT; i++) if (PAD[i].hit(t.x, t.y)) heldPad = i;
     if (heldPad != PAD_NONE) { PadEv e = {heldPad, false}; xQueueSend(padQ, &e, 0); heldSince = lastRepeat = now; }
     headHoldSince = PANEL[P_HEAD].hit(t.x, t.y) ? now : 0;
+    statsHoldSince = PANEL[P_RIGHT].hit(t.x, t.y) ? now : 0;
   }
   if (t.isPressed()) {
     if ((heldPad == PAD_MINUS || heldPad == PAD_PLUS) && now - heldSince > 400 && now - lastRepeat > 90) {
       PadEv e = {heldPad, true}; xQueueSend(padQ, &e, 0); lastRepeat = now;
     }
+    if (statsHoldSince && now - statsHoldSince > 1000) { statsHoldSince = 0; debugView = !debugView; }
     if (headHoldSince && now - headHoldSince > 2000) {
       headHoldSince = 0; flipped = !flipped; prefs.putBool("flip", flipped);
       M5.Display.setRotation(M5.Display.getRotation() ^ 2);
       memset(lastHash, 0, sizeof(lastHash));
     }
   }
-  if (t.wasReleased() || !t.isPressed()) { heldPad = PAD_NONE; headHoldSince = 0; }
+  if (t.wasReleased() || !t.isPressed()) { heldPad = PAD_NONE; headHoldSince = 0; statsHoldSince = 0; }
 }
 
 // The big BPM digits are drawn from anti-aliased glyphs of up to ~13 KB, which M5GFX copies onto the stack.
