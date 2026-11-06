@@ -5,6 +5,7 @@
 //          phase lock). ON AIR sends every beat over ESP-NOW to the Heltec V3 bridge, which puts it on the
 //          LoRa beat link, so every follower, the CYD console and the M5Dial follow the StickS3.
 // FOLLOW:  a pocket badge. The screen flashes in the conductor's colour on every beat.
+//          If the mic can't start, it boots straight into FOLLOW (the reason shows in CONDUCT and on serial).
 //
 // Buttons (KEY1 = big front button, KEY2 = side button)
 //   KEY1 tap        = tap tempo (taps override the mic for 15 s, first tap = beat 1)      [CONDUCT]
@@ -48,7 +49,7 @@ portMUX_TYPE mux = portMUX_INITIALIZER_UNLOCKED;
 
 uint8_t mode = MODE_CONDUCT;
 int gain = 1;
-bool micOk = false, onAir = false;
+bool micOk = false, onAir = false, micFallback = false;
 
 // ---- conduct state (loop) ----
 uint8_t hue = 160;
@@ -293,6 +294,9 @@ void setup() {
   if (!linkInit()) Serial.println("# ESP-NOW init failed");
   xTaskCreatePinnedToCore(audioTask, "audio", 8192, nullptr, 3, nullptr, 0);
   micOk = micStart();
+  if (!micOk && mode == MODE_CONDUCT) {                 // no mic: don't sit on a fake 120 BPM, follow the rig instead
+    mode = MODE_FOLLOW; micFallback = true;             // not saved: next boot tries the mic again
+  }
   Serial.printf("# display %dx%d\n", M5.Display.width(), M5.Display.height());
   Serial.printf("# mic %s (%s) | board %d | gain %d | mode %s | ESP-NOW ch %d net 0x%02X | MAC %s\n", micOk ? "ok" : "FAILED", micDiag, (int)M5.getBoard(), gain,
                 mode == MODE_CONDUCT ? "CONDUCT" : "FOLLOW", LINK_ESPNOW_CH, LINK_NET_ID, WiFi.macAddress().c_str());
@@ -348,7 +352,7 @@ void loop() {
       else if (now - fol.lastRxMs < 1500) v.link = LS_LIVE;
       else if (now - fol.lastRxMs < FLYWHEEL_MS) v.link = LS_HOLD;
       else v.link = LS_WAIT;
-      v.viaBooth = fol.viaBooth; v.rssi = fol.rssi; v.lost = fol.lost;
+      v.viaBooth = fol.viaBooth; v.rssi = fol.rssi; v.lost = fol.lost; v.micFallback = micFallback; v.micDiag = micDiag;
       v.bpm = fol.bpm; v.beatPos = fol.beatPos; v.hue = fol.hue;
     }
     drawFrame(v, now);

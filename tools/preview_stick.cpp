@@ -37,5 +37,10 @@ int main() {
   drawFrame(v, now); save("5_follow_live");
   v.viaBooth = true; v.beatPos = 3; v.flashDown = false; v.flashMs = now - 200; drawFrame(v, now); save("6_follow_booth");
   v.bridgeOk = false; v.link = LS_WAIT; v.bpm = 0; drawFrame(v, now); save("7_no_link");
+  v = {}; v.mode = MODE_CONDUCT; v.micOk = false; v.bridgeOk = true; v.battery = 80; v.bpm = 120; v.beatPos = 3; v.hue = 160;
+  v.scope = sc; v.scopeOn = on; v.scopeN = 135; v.micDiag = "E3 mic begin | A init ESP_ERR_INVALID_ARG";
+  drawFrame(v, now); save("8_mic_failed");
+  v = {}; v.mode = MODE_FOLLOW; v.bridgeOk = true; v.battery = 80; v.link = LS_LIVE; v.rssi = -79; v.bpm = 127.0f; v.beatPos = 1;
+  v.hue = 40; v.flashMs = now - 60; v.micFallback = true; drawFrame(v, now); save("9_follow_fallback");
   return 0;
 }

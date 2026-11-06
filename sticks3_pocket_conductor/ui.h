@@ -12,7 +12,7 @@ struct View {
   bool onAir, manual, conflict, bridgeOk; uint32_t sent; float level, conf; int gain; bool micOk; const char* micDiag;
   const float* scope; const bool* scopeOn; int scopePos, scopeN;
   // follow
-  uint8_t link; bool viaBooth; int rssi; uint32_t lost;
+  uint8_t link; bool viaBooth; int rssi; uint32_t lost; bool micFallback;
   // both
   float bpm; int beatPos; uint8_t hue; uint32_t flashMs; bool flashDown; int battery; bool toastGain;
 };
@@ -114,7 +114,7 @@ void drawFrame(const View& v, uint32_t now) {
     }
     // onset scope + level meter
     int base = 214;
-    for (int i = 0; i < v.scopeN && i < SW; i++) {
+    for (int i = 0; v.micOk && i < v.scopeN && i < SW; i++) {
       int k = (v.scopePos + i) % v.scopeN;
       int h = (int)(v.scope[k] * 30);
       if (h > 0) cv.drawFastVLine(i, base - h, h, v.scopeOn[k] ? hueCol(v.hue, 255) : COL_DIM);
@@ -134,8 +134,12 @@ void drawFrame(const View& v, uint32_t now) {
     else if (v.viaBooth) { strcpy(l1, "booth has"); strcpy(l2, "the beat"); }
     else if (v.link != LS_WAIT) { snprintf(l1, sizeof(l1), "%d dBm", v.rssi); snprintf(l2, sizeof(l2), "lost %lu", (unsigned long)v.lost); }
     else { strcpy(l1, "waiting for"); strcpy(l2, "a beat"); }
-    ctext(&fonts::FreeSansBold9pt7b, l1, 198, COL_GREY);
-    ctext(&fonts::FreeSansBold9pt7b, l2, 222, COL_GREY);
+    ctext(&fonts::FreeSansBold9pt7b, l1, v.micFallback ? 192 : 198, COL_GREY);
+    ctext(&fonts::FreeSansBold9pt7b, l2, v.micFallback ? 212 : 222, COL_GREY);
+    if (v.micFallback) {                               // booted here because the mic failed
+      cv.setFont(&fonts::Font0); cv.setTextDatum(middle_center); cv.setTextColor(COL_RED);
+      cv.drawString("NO MIC: hold side=why", SCX, 233);
+    }
   }
 
   if (v.toastGain) {
