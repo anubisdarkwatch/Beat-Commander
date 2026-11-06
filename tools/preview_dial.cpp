@@ -1,5 +1,5 @@
 // Host preview for the M5Dial Beat Dial: renders each screen from m5dial_beat_dial/ui.h to a .ppm file.
-// Build (Linux, needs M5GFX source + SDL2 headers): see tools/build_preview_dial.sh
+// Build (Linux, needs M5GFX source + SDL2 headers): see tools/build_preview.sh
 #include <cstdio>
 #include <cstring>
 #include <cstdint>

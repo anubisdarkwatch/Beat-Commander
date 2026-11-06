@@ -29,6 +29,7 @@ Every board in the system has a ready-made `.bin`. Chrome or Edge on desktop:
 | Heltec WiFi LoRa 32 V3 | Bridge for the booth console | [`firmware/Beat-Bridge-HeltecV3-v1.0.bin`](firmware/Beat-Bridge-HeltecV3-v1.0.bin) |
 | CYD (ESP32-2432S028R) | Booth console | [`firmware/CYD-Beat-Console-v1.0.2.bin`](firmware/CYD-Beat-Console-v1.0.2.bin) |
 | M5Stack M5Dial | Handheld takeover controller | [`firmware/M5Dial-Beat-Dial-v1.0.bin`](firmware/M5Dial-Beat-Dial-v1.0.bin) |
+| M5Stack StickS3 | Pocket conductor (mic) / beat badge | [`firmware/StickS3-Pocket-Conductor-v1.0.bin`](firmware/StickS3-Pocket-Conductor-v1.0.bin) |
 
 If **Connect** fails, put the board in download mode and try again: hold **BOOT** (Heltec: **PRG**) while
 plugging in, or hold it, tap **RST**, then release. On the W10, turn the LoRa beat link on with a 1 s hold of
@@ -219,7 +220,37 @@ shows the conflict banner.
 **Build from source:** Arduino IDE 2.x, esp32 by Espressif 3.x, board **M5Dial**, library **M5Dial** (installs
 M5Unified and M5GFX). Options at the top of `m5dial_beat_dial.ino`: `ENC_PER_CLICK`, `BRIGHTNESS`, `MAX_TAGS`,
 `CLICK_SOUND`. Serial log at 115200 prints each scanned tag's UID. The screens are in `m5dial_beat_dial/ui.h`.
-`tools/build_preview_dial.sh <M5GFX folder> <out folder>` renders them on a Linux PC (needs SDL2 headers).
+`tools/build_preview.sh <M5GFX folder> <out folder> preview_dial.cpp` renders them on a Linux PC (needs SDL2 headers).
+
+## Pocket conductor: M5StickS3
+
+![Pocket Conductor screens](docs/stick-screens.png)
+
+The W10's beat engine running on the M5Stack StickS3's onboard mic, with no LoRa radio needed. **ON AIR** sends
+each beat over ESP-NOW to the Heltec V3 bridge, which transmits it on the beat link. Followers, the CYD
+console and the M5Dial all follow the StickS3 the same way they follow the W10. Like the Dial, it re-broadcasts each beat the bridge confirms,
+so a CYD in follow mode shows its tempo. Switch to **FOLLOW** and it becomes a pocket badge that flashes in the
+conductor's colour.
+
+**Flash it:** use [the browser steps](#flash-it-from-the-browser-no-arduino-ide) with
+`StickS3-Pocket-Conductor-v1.0.bin`.
+
+| Button | CONDUCT | FOLLOW |
+|---|---|---|
+| Front button (KEY1), tap | Tap tempo: taps override the mic for 15 s, first tap = beat 1 | |
+| Front button, hold 1 s | **ON AIR** on / off | |
+| Side button (KEY2), tap | Mic gain: club / loud room / quiet room / max (remembered) | |
+| Side button, hold 1 s | Switch to FOLLOW | Switch to CONDUCT |
+
+It starts **LOCAL** (beat on screen only). Turn the W10's **LORA TX** off before going ON AIR. If the bridge still
+hears the W10, or another controller is sending, the pill turns to **CLASH**. The panel at the bottom shows the onset
+scope (bright ticks = detected hits) and the mic level. If the level bar sits near the end, lower the gain. If it barely
+moves, raise it.
+
+**Build from source:** Arduino IDE 2.x, esp32 by Espressif 3.x, board **ESP32S3 Dev Module** with Flash Size 8MB,
+PSRAM **OPI PSRAM**, USB CDC On Boot **Enabled**. Library **M5Unified** (installs M5GFX). The beat engine is in
+`sticks3_pocket_conductor/beat_engine.h`, copied from the W10 sketch. Screens are in `ui.h`; preview them with
+`tools/build_preview.sh <M5GFX folder> <out folder> preview_stick.cpp`.
 
 ## Hardware notes (W10)
 
