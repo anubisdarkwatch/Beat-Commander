@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include "gfx.h"
 
-#define FW_VERSION "v1.0.1"
+#define FW_VERSION "v1.0.2"
 
 enum Mode : uint8_t { M_FOLLOW, M_TAKE };
 enum LinkState : uint8_t { LS_WAIT, LS_LIVE, LS_HOLD, LS_TAKE };
@@ -205,7 +205,7 @@ static void drawSplash(float p) {
     alpha4(JACKAL_L, JACKAL_L_W, JACKAL_L_H, (SCR_W - JACKAL_L_W) / 2, 30, C_AMB);
     textC(ORB_20, "BEAT CONSOLE", SCR_W / 2, 150, C_AMB);
     textC(STM_12, "ANUBIS DARKWATCH  //  " FW_VERSION, SCR_W / 2, 172, C_GRN);
-    textC(STM_12, "touch now to calibrate", SCR_W / 2, 222, C_DIM);
+    textC(STM_12, "touch: calibrate   BOOT: display check", SCR_W / 2, 222, C_DIM);
     brackets(8, 8, SCR_W - 16, SCR_H - 16, 14, C_DIM);
     scanlines(0, 0, SCR_W, SCR_H, 190);
     fillRect(0, 0, SCR_W, y0, C_BLACK);                       // slit mask

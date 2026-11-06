@@ -27,7 +27,7 @@ Every board in the system has a ready-made `.bin`. Chrome or Edge on desktop:
 | Meshnology W10 | Conductor (mic, LoRa TX) | [`firmware/W10-Beat-Conductor-v1.0.bin`](firmware/W10-Beat-Conductor-v1.0.bin) |
 | Heltec WiFi LoRa 32 V3 | Follower (flashes on the beat) | [`firmware/Beat-Follower-HeltecV3-v1.0.bin`](firmware/Beat-Follower-HeltecV3-v1.0.bin) |
 | Heltec WiFi LoRa 32 V3 | Bridge for the booth console | [`firmware/Beat-Bridge-HeltecV3-v1.0.bin`](firmware/Beat-Bridge-HeltecV3-v1.0.bin) |
-| CYD (ESP32-2432S028R) | Booth console | [`firmware/CYD-Beat-Console-v1.0.1.bin`](firmware/CYD-Beat-Console-v1.0.1.bin) |
+| CYD (ESP32-2432S028R) | Booth console | [`firmware/CYD-Beat-Console-v1.0.2.bin`](firmware/CYD-Beat-Console-v1.0.2.bin) |
 
 If **Connect** fails, put the board in download mode and try again: hold **BOOT** (Heltec: **PRG**) while
 plugging in, or hold it, tap **RST**, then release. On the W10, turn the LoRa beat link on with a 1 s hold of
@@ -116,10 +116,16 @@ screen: a V3 with a dead OLED is perfect for this. No soldering anywhere, just t
 ### Flash it (browser, no installs)
 
 Use the steps in [Flash it from the browser](#flash-it-from-the-browser-no-arduino-ide) with
-`CYD-Beat-Console-v1.0.1.bin` on the CYD and `Beat-Bridge-HeltecV3-v1.0.bin` on the Heltec V3.
+`CYD-Beat-Console-v1.0.2.bin` on the CYD and `Beat-Bridge-HeltecV3-v1.0.bin` on the Heltec V3.
 
-First boot of the CYD asks you to calibrate the touchscreen: tap three crosses with a fingernail or stylus.
-To redo it later, touch the screen during the boot splash.
+**First boot of the CYD:**
+1. **Display check.** CYD batches use different panels, so the image can come out mirrored or with red and
+   blue swapped. Tap **BOOT** to step through the four settings until "<< THIS SIDE IS LEFT" reads normally and
+   the AMBER / RED / BLUE blocks match their labels, then hold **BOOT** for 2 s to save.
+2. **Touch calibration.** Tap three crosses with a fingernail or stylus.
+
+Both are remembered. To redo them, hold **BOOT** (display) or touch the screen (calibration) during the boot splash.
+The console uses the resistive-touch CYD (ESP32-2432S028R, XPT2046).
 
 ### Using it
 
@@ -156,7 +162,7 @@ Arduino IDE 2.x, **esp32 by Espressif** core 2.x or 3.x. No extra libraries for 
 
 Options at the top of each sketch:
 - `LINK_NET_ID` / `LINK_ESPNOW_CH` in `link.h` (keep both copies identical) to run two rigs side by side.
-- `PANEL_ST7789 1` for the "2-USB" CYD variant; `PANEL_BGR` if red and blue are swapped; `PANEL_MIRROR` if the image is mirrored; `PANEL_INVERT` if colours look negative.
+- `PANEL_ST7789 1` for the "2-USB" CYD variant; `PANEL_INVERT` if colours look negative. Mirroring and colour order are set on the device (display check), with `PANEL_MIRROR` / `PANEL_BGR` as the defaults.
 - `LINK_POWER_DBM` on the bridge (takeover TX power, default 10 dBm like the W10).
 - `DEBUG_TOUCH 1` prints raw touch readings.
 

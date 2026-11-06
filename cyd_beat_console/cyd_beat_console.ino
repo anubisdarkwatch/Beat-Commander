@@ -27,8 +27,8 @@ struct Cal { uint8_t swap; float ax, bx, ay, by; };                             
 
 // ---------- options ----------
 #define PANEL_ST7789   0     // 1 for the "2-USB" CYD variant with an ST7789 panel
-#define PANEL_BGR      0     // swap if red and blue look exchanged (amber showing as blue)
-#define PANEL_MIRROR   1     // swap if the screen is mirrored left-to-right
+#define PANEL_BGR      0     // default colour order (changeable on the device: display check)
+#define PANEL_MIRROR   1     // default mirroring (changeable on the device: display check)
 #define PANEL_INVERT   PANEL_ST7789   // set 1 if colours look like a photo negative
 #define SPI_HZ         40000000
 #define BACKLIGHT      255   // 0..255
@@ -56,6 +56,8 @@ struct Cal { uint8_t swap; float ax, bx, ay, by; };                             
 SPIClass tftSPI(HSPI);
 SPISettings tftSet(SPI_HZ, MSBFIRST, SPI_MODE0);
 bool flipped = false;
+uint8_t panelMode = (PANEL_MIRROR ? 1 : 0) | (PANEL_BGR ? 2 : 0);   // bit0 mirror, bit1 BGR; saved as "pmode"
+#define BOOT_BTN 0
 
 void tftCmd(uint8_t c) { digitalWrite(TFT_DC, LOW); tftSPI.transfer(c); digitalWrite(TFT_DC, HIGH); }
 void tftCmdData(uint8_t c, const uint8_t* d, int n) {
@@ -64,12 +66,12 @@ void tftCmdData(uint8_t c, const uint8_t* d, int n) {
   digitalWrite(TFT_CS, HIGH); tftSPI.endTransaction();
 }
 uint8_t madctl() {
-  uint8_t order = PANEL_BGR ? 0x08 : 0x00;
+  uint8_t order = (panelMode & 2) ? 0x08 : 0x00;
 #if PANEL_ST7789
   return (flipped ? 0xA0 : 0x60) | order;
 #else
   uint8_t m = flipped ? 0xE0 : 0x20;                  // MV (landscape), MX|MY when rotated 180
-  if (PANEL_MIRROR) m ^= 0x40;                         // MX
+  if (panelMode & 1) m ^= 0x40;                        // MX
   return m | order;
 #endif
 }
@@ -371,22 +373,74 @@ bool linkInit() {
   return true;
 }
 
+// ---- display check: pick mirroring + colour order on the device (one .bin fits every CYD) ----
+void drawDisplayCheck() {
+  paint(0, SCR_H, [] {
+    fillRect(0, 0, SCR_W, SCR_H, C_BLACK);
+    textC(ORB_14, "DISPLAY CHECK", SCR_W / 2, 18, C_AMB);
+    text(STM_16, "<< THIS SIDE IS LEFT", 12, 50, C_WHITE);
+    static const char* name[3] = {"AMBER", "RED", "BLUE"};
+    const uint16_t col[3] = {C_AMB, rgb(255, 0, 0), rgb(0, 60, 255)};
+    for (int i = 0; i < 3; i++) {
+      int x = 14 + i * 100;
+      fillRect(x, 82, 92, 60, col[i]);
+      textC(STM_16, name[i], x + 46, 150, C_WHITE);
+    }
+    char m[24]; snprintf(m, sizeof(m), "setting %d of 4", panelMode + 1);
+    textC(STM_12, m, SCR_W / 2, 182, C_GREY);
+    textC(STM_12, "text reads right + colours match?", SCR_W / 2, 202, C_GRN);
+    textC(STM_12, "no: tap BOOT    yes: hold BOOT 2 s", SCR_W / 2, 220, C_GRN);
+  });
+}
+void displayCheck() {
+  Serial.println("# display check: tap BOOT = next setting, hold BOOT 2 s = save");
+  while (digitalRead(BOOT_BTN) == LOW) delay(10);          // wait for release of the press that opened it
+  drawDisplayCheck();
+  while (true) {
+    if (digitalRead(BOOT_BTN) == LOW) {
+      uint32_t t0 = millis();
+      while (digitalRead(BOOT_BTN) == LOW && millis() - t0 < 2000) delay(10);
+      if (millis() - t0 >= 2000) {                         // hold = save
+        prefs.putUChar("pmode", panelMode);
+        Serial.printf("# display setting %d saved\n", panelMode + 1);
+        paint(0, SCR_H, [] { fillRect(0, 0, SCR_W, SCR_H, C_BLACK); textC(ORB_14, "SAVED", SCR_W / 2, 110, C_GRN); });
+        while (digitalRead(BOOT_BTN) == LOW) delay(10);
+        delay(600);
+        return;
+      }
+      if (millis() - t0 > 40) {                            // tap = next setting
+        panelMode = (panelMode + 1) & 3; tftRotate(); drawDisplayCheck();
+        Serial.printf("# display setting %d\n", panelMode + 1);
+      }
+    }
+    delay(10);
+  }
+}
+
 void setup() {
   Serial.begin(115200); delay(200);
   Serial.println("# CYD Beat Console " FW_VERSION);
   pinMode(LED_R, OUTPUT); pinMode(LED_G, OUTPUT); pinMode(LED_B, OUTPUT); ledSet(0, 0, 0);
   pinMode(TFT_BL, OUTPUT); digitalWrite(TFT_BL, LOW);
+  pinMode(BOOT_BTN, INPUT_PULLUP);
   prefs.begin("beatcon", false);
   flipped = prefs.getBool("flip", false);
+  bool havePanel = prefs.isKey("pmode");
+  if (havePanel) panelMode = prefs.getUChar("pmode", panelMode) & 3;
   bool haveCal = prefs.getBytesLength("cal2") == sizeof(Cal);
   if (haveCal) prefs.getBytes("cal2", &cal, sizeof(cal));
   tftInit(); tpInit();
   paint(0, SCR_H, [] { fillRect(0, 0, SCR_W, SCR_H, C_BLACK); });
   analogWrite(TFT_BL, BACKLIGHT);
 
+  if (!havePanel) displayCheck();                      // first boot: make sure the panel looks right
   for (int i = 1; i <= 12; i++) drawSplash(i / 12.0f);  // CRT power-on
   uint32_t t = millis(); bool doCal = false; int x, y;
-  while (millis() - t < 1500) { if (tpPoint(x, y)) { doCal = true; break; } delay(10); }
+  while (millis() - t < 1500) {
+    if (tpPoint(x, y)) { doCal = true; break; }
+    if (digitalRead(BOOT_BTN) == LOW) { displayCheck(); for (int i = 1; i <= 12; i++) drawSplash(i / 12.0f); t = millis(); }
+    delay(10);
+  }
   if (doCal || !haveCal) calibrate();               // first boot always calibrates
 
   rxQ = xQueueCreate(16, sizeof(LinkFrame));
