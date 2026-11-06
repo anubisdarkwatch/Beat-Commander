@@ -21,7 +21,7 @@
 #include "usbgw.h"
 #include <esp_system.h>
 
-#define FW_VERSION   "1.0.3"
+#define FW_VERSION   "1.0.4"
 
 // ---------- options ----------
 #define LINK_AIR_MS    12     // in TAKE, flash this long after sending (USB + ESP-NOW + LoRa airtime): matches followers
@@ -33,6 +33,7 @@
 struct Frame { char type; uint8_t seq, beat, hue, echo, radio; uint16_t bpm10; int16_t rssi; float snr; uint32_t count; };
 QueueHandle_t rxQ;
 char gwVersion[40] = "";
+volatile uint32_t framesGot = 0, framesSent = 0;   // frames that reached the Tab5 / frames the gateway heard (from its S line)
 
 static uint16_t b10(const char* s) { return (uint16_t)lroundf(atof(s) * 10); }
 
@@ -47,12 +48,14 @@ void onGatewayLine(const char* line) {           // runs in the USB task
     case 'A': if (n < 6) return; f.seq = atoi(p[1]); f.bpm10 = b10(p[2]); f.beat = atoi(p[3]); f.hue = atoi(p[4]); f.count = atol(p[5]); break;
     case 'F': if (n < 4) return; f.bpm10 = b10(p[1]); f.beat = atoi(p[2]); f.hue = atoi(p[3]); break;
     case 'H': if (n < 3) return; f.radio = atoi(p[1]); f.count = atol(p[2]); break;
+    case 'S': if (n >= 8) framesSent = atol(p[7]); return;
     case '#':
       if (!strncmp(line, "# Beat Gateway v", 16)) { const char* e = strchr(line + 2, '|'); int k = e ? e - line - 3 : strlen(line + 2);
         k = min(k, (int)sizeof(gwVersion) - 1); memcpy(gwVersion, line + 2, k); gwVersion[k] = 0; }
       return;
     default: return;
   }
+  framesGot++;
   xQueueSend(rxQ, &f, 0);
 }
 
@@ -232,6 +235,7 @@ void snapshot(View& v, uint32_t now) {
   v.gwOk = gw::connected();
   if (!v.gwOk && v.mode != M_TAKE) v.link = LS_NOGW;
   v.gwName = gwVersion[0] ? gwVersion : gw::product();
+  v.framesGot = framesGot; v.framesSent = framesSent;
   static int bat = -1; static bool chg = false; static uint32_t batMs = 0;
   if (!batMs || now - batMs > 3000) {                  // I2C reads: only every few seconds
     batMs = now | 1; bat = M5.Power.getBatteryLevel(); chg = M5.Power.isCharging() == m5::Power_Class::is_charging;
@@ -275,7 +279,8 @@ void setup() {
   switch (esp_reset_reason()) {                        // say why the last run ended, if it wasn't a normal start
     case ESP_RST_BROWNOUT: resetNote = "last restart: POWER DIP (brownout)"; break;
     case ESP_RST_PANIC:    resetNote = "last restart: CRASH (panic)"; break;
-    case ESP_RST_INT_WDT: case ESP_RST_TASK_WDT: case ESP_RST_WDT: resetNote = "last restart: CRASH (watchdog)"; break;
+    case ESP_RST_INT_WDT: case ESP_RST_TASK_WDT: resetNote = "last restart: CRASH (watchdog)"; break;
+    // ESP_RST_WDT is left out: a reset from the flasher over USB shows up as that, so it isn't a crash
     default: break;
   }
   if (resetNote) Serial.printf("# %s\n", resetNote);

@@ -24,6 +24,7 @@ struct View {
   uint8_t mode, link;
   bool gwOk, bridgeOk, radioOk, conflict;
   const char* gwName;
+  uint32_t framesGot, framesSent;            // link frames received over USB / heard by the gateway's radio
   float bpm; uint8_t beatPos, hue; uint32_t bars;
   int rssi; float snr; uint32_t rx, lost, sent, fail; int nudgeMs; bool viaBooth;
   uint32_t flashMs; bool flashDown;
@@ -267,6 +268,10 @@ void drawRight(LGFX_Sprite& s, const View& v) {
   text(s, &fH2, "GATEWAY", 36, 572, C_AMB_D, middle_left);
   text(s, &fMono, v.gwOk ? (v.gwName && v.gwName[0] ? v.gwName : "connected") : "not plugged in", 36, 604, v.gwOk ? C_TXT : C_RED, middle_left);
   if (take && !v.bridgeOk) text(s, &fMono, "no bridge", 300, 572, C_RED, middle_right);
+  else if (v.gwOk && v.framesSent) {                 // radio frames vs frames that made it over USB
+    char b[24]; snprintf(b, sizeof(b), "%lu/%lu", (unsigned long)v.framesGot, (unsigned long)v.framesSent);
+    text(s, &fMono, b, 300, 572, v.framesSent > v.framesGot + 5 ? C_AMB : C_AMB_D, middle_right);
+  }
 }
 
 // a cheap fingerprint of what each static panel shows, to skip redraws when nothing changed
@@ -277,4 +282,5 @@ uint32_t hashLeft(const View& v) { uint32_t h = 2166136261u; h = mix(h, v.mode);
   h = mix(h, v.tapCount); return h; }
 uint32_t hashRight(const View& v) { uint32_t h = 2166136261u; h = mix(h, v.mode); h = mix(h, v.link); h = mix(h, v.viaBooth); h = mix(h, v.rssi);
   h = mix(h, (uint32_t)lroundf(v.snr * 4)); h = mix(h, v.rx); h = mix(h, v.lost); h = mix(h, v.sent); h = mix(h, v.fail > 2);
-  h = mix(h, v.nudgeMs); h = mix(h, v.gwOk); h = mix(h, v.bridgeOk); h = mix(h, (uint32_t)(uintptr_t)v.gwName); return h; }
+  h = mix(h, v.nudgeMs); h = mix(h, v.gwOk); h = mix(h, v.bridgeOk); h = mix(h, (uint32_t)(uintptr_t)v.gwName);
+  h = mix(h, v.framesSent); return h; }

@@ -28,7 +28,7 @@
 #include "link.h"
 #include "gateway.h"
 
-#define FW_VERSION "1.2"
+#define FW_VERSION "1.3"
 #define LED_PIN 21                  // XIAO user LED, active LOW
 
 // How long after the real beat each kind of frame reaches us (the gateway reports beat time = arrival - this).
@@ -49,8 +49,10 @@ uint8_t cfgChannel = 16;
 // ---------------- ESP-NOW in ----------------
 QueueHandle_t evQ;
 
+volatile uint32_t framesIn = 0;
 void onFrame(const uint8_t* d, int len) {
   if (!linkValid(d, len)) return;
+  framesIn++;
   Ev e; memcpy(&e.f, d, sizeof(LinkFrame)); e.t = esp_timer_get_time();
   xQueueSend(evQ, &e, 0);
 }
@@ -60,6 +62,7 @@ bool espnowInit() {
   WiFi.setTxPower(WIFI_POWER_8_5dBm);   // v1.2: gentle on weak USB ports (Tab5); plenty for a bridge in the same booth
   esp_wifi_set_channel(LINK_ESPNOW_CH, WIFI_SECOND_CHAN_NONE);
   if (esp_now_init() != ESP_OK) return false;
+  esp_wifi_set_ps(WIFI_PS_NONE);        // v1.3: radio always listening (modem sleep can drop ESP-NOW broadcasts)
   esp_now_peer_info_t peer = {};
   memset(peer.peer_addr, 0xFF, 6); peer.channel = LINK_ESPNOW_CH; peer.encrypt = false;
   esp_now_add_peer(&peer);
@@ -196,8 +199,8 @@ void status() {
   int64_t now = esp_timer_get_time();
   const char* st = src == SRC_NONE ? "WAIT" : freeBeats ? "FREE" : "LOCK";
   const char* br = bridgeHelloUs && now - bridgeHelloUs < 3000000 ? (bridgeRadio ? "OK" : "NORADIO") : "-";
-  USBSerial.printf("S,%s,%.1f,%s,%lu,%s,%s\n", st, bpm10 / 10.0f, srcName(src), (unsigned long)beatsReal,
-                   clockRun ? "RUN" : "STOP", br);
+  USBSerial.printf("S,%s,%.1f,%s,%lu,%s,%s,%lu\n", st, bpm10 / 10.0f, srcName(src), (unsigned long)beatsReal,
+                   clockRun ? "RUN" : "STOP", br, (unsigned long)framesIn);
 }
 
 void saveCfg() {
