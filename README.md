@@ -29,7 +29,7 @@ Every board in the system has a ready-made `.bin`. Chrome or Edge on desktop:
 | Heltec WiFi LoRa 32 V3 | Bridge for the booth console | [`firmware/Beat-Bridge-HeltecV3-v1.0.bin`](firmware/Beat-Bridge-HeltecV3-v1.0.bin) |
 | CYD (ESP32-2432S028R) | Booth console | [`firmware/CYD-Beat-Console-v1.0.2.bin`](firmware/CYD-Beat-Console-v1.0.2.bin) |
 | M5Stack M5Dial | Handheld takeover controller | [`firmware/M5Dial-Beat-Dial-v1.0.bin`](firmware/M5Dial-Beat-Dial-v1.0.bin) |
-| M5Stack StickS3 | Pocket conductor (mic) / beat badge | [`firmware/StickS3-Pocket-Conductor-v1.0.2.bin`](firmware/StickS3-Pocket-Conductor-v1.0.2.bin) |
+| M5Stack StickS3 | Pocket conductor (mic) / beat badge | [`firmware/StickS3-Pocket-Conductor-v1.0.3.bin`](firmware/StickS3-Pocket-Conductor-v1.0.3.bin) |
 
 If **Connect** fails, put the board in download mode and try again: hold **BOOT** (Heltec: **PRG**) while
 plugging in, or hold it, tap **RST**, then release. On the W10, turn the LoRa beat link on with a 1 s hold of
@@ -233,7 +233,7 @@ so a CYD in follow mode shows its tempo. Switch to **FOLLOW** and it becomes a p
 conductor's colour.
 
 **Flash it:** use [the browser steps](#flash-it-from-the-browser-no-arduino-ide) with
-`StickS3-Pocket-Conductor-v1.0.2.bin`.
+`StickS3-Pocket-Conductor-v1.0.3.bin`.
 
 | Button | CONDUCT | FOLLOW |
 |---|---|---|

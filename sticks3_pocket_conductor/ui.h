@@ -110,7 +110,7 @@ void drawFrame(const View& v, uint32_t now) {
     if (!v.micOk) {                                     // mic diagnostics where the scope would be
       cv.setFont(&fonts::Font0); cv.setTextColor(COL_RED); cv.setTextDatum(top_left);
       const char* d = v.micDiag ? v.micDiag : ""; int len = strlen(d), y = 182;
-      for (int k = 0; k < len && y < 226; k += 21, y += 10) { char ln2[22]; snprintf(ln2, sizeof(ln2), "%.21s", d + k); cv.drawString(ln2, 4, y); }
+      for (int k = 0; k < len && y < 222; k += 21, y += 9) { char ln2[22]; snprintf(ln2, sizeof(ln2), "%.21s", d + k); cv.drawString(ln2, 4, y); }
     }
     // onset scope + level meter
     int base = 214;
