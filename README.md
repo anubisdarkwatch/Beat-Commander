@@ -14,6 +14,25 @@ Companion project: [W10-ISM-Waterfall](https://github.com/anubisdarkwatch/W10-IS
 |---|---|
 | ![Conductor](docs/conductor.jpg) | ![Follower](docs/follower.jpg) |
 
+## Flash it from the browser (no Arduino IDE)
+
+Every board in the system has a ready-made `.bin`. Chrome or Edge on desktop:
+
+1. Plug the board in over USB, open https://espressif.github.io/esptool-js/, click **Connect** and pick its port.
+2. Set the flash address to **0x0**, choose the file, click **Program**.
+3. When it finishes, unplug and replug (or press RST).
+
+| Board | Role | File |
+|---|---|---|
+| Meshnology W10 | Conductor (mic, LoRa TX) | [`firmware/W10-Beat-Conductor-v1.0.bin`](firmware/W10-Beat-Conductor-v1.0.bin) |
+| Heltec WiFi LoRa 32 V3 | Follower (flashes on the beat) | [`firmware/Beat-Follower-HeltecV3-v1.0.bin`](firmware/Beat-Follower-HeltecV3-v1.0.bin) |
+| Heltec WiFi LoRa 32 V3 | Bridge for the booth console | [`firmware/Beat-Bridge-HeltecV3-v1.0.bin`](firmware/Beat-Bridge-HeltecV3-v1.0.bin) |
+| CYD (ESP32-2432S028R) | Booth console | [`firmware/CYD-Beat-Console-v1.0.1.bin`](firmware/CYD-Beat-Console-v1.0.1.bin) |
+
+If **Connect** fails, put the board in download mode and try again: hold **BOOT** (Heltec: **PRG**) while
+plugging in, or hold it, tap **RST**, then release. On the W10, turn the LoRa beat link on with a 1 s hold of
+BOOT once it's running.
+
 ## What it does
 
 - **Beat detection from the mic** (ES8311 codec): kick-drum band + full-band onset detection every 8 ms
@@ -96,11 +115,8 @@ screen: a V3 with a dead OLED is perfect for this. No soldering anywhere, just t
 
 ### Flash it (browser, no installs)
 
-1. Chrome or Edge on desktop: open https://espressif.github.io/esptool-js/ → **Connect** → pick the board's port.
-2. Flash at address **0x0** → **Program**, then unplug and replug.
-   - CYD: [`firmware/CYD-Beat-Console-v1.0.1.bin`](firmware/CYD-Beat-Console-v1.0.1.bin)
-   - Heltec V3: [`firmware/Beat-Bridge-HeltecV3-v1.0.bin`](firmware/Beat-Bridge-HeltecV3-v1.0.bin)
-3. If Connect fails: hold **BOOT** while plugging in (or hold BOOT, tap RST, release).
+Use the steps in [Flash it from the browser](#flash-it-from-the-browser-no-arduino-ide) with
+`CYD-Beat-Console-v1.0.1.bin` on the CYD and `Beat-Bridge-HeltecV3-v1.0.bin` on the Heltec V3.
 
 First boot of the CYD asks you to calibrate the touchscreen: tap three crosses with a fingernail or stylus.
 To redo it later, touch the screen during the boot splash.
