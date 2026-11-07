@@ -10,7 +10,7 @@ BPM, flashes its 1.54" screen and RGB LED on every beat, and broadcasts each bea
 
 **The crew**
 - **Conductor:** Meshnology W10 (mic + LoRa), or the M5StickS3 Pocket Conductor
-- **Followers:** Heltec V3 (and the XIAO kits, coming)
+- **Followers:** Heltec V3, the Piglet beat badge (and the XIAO kits, coming)
 - **Bridge:** Heltec V3, linking LoRa and ESP-NOW for the booth gear
 - **Booth controllers:** CYD console, M5Dial, M5Stack Tab5 Command Center, Cardputer ADV terminal
 - **Gateway:** XIAO ESP32-S3 on USB: MIDI clock, Ableton Link, OSC, and the Tab5's radio
@@ -51,6 +51,7 @@ Every board in the system has a ready-made `.bin`:
 | Seeed XIAO ESP32-S3 | Beat Gateway (USB MIDI clock + feed for Beat Hub) | [`firmware/Beat-Gateway-XIAO-S3-v1.3.bin`](firmware/Beat-Gateway-XIAO-S3-v1.3.bin) |
 | M5Stack Tab5 | Beat Command Center (big touch console, uses the Beat Gateway as its radio) | [`firmware/Tab5-Beat-Command-v1.0.5.bin`](firmware/Tab5-Beat-Command-v1.0.5.bin) |
 | M5Stack Cardputer ADV (or Cardputer) | Beat Commander terminal (keyboard booth controller) | [`firmware/Cardputer-Beat-Terminal-v1.0.bin`](firmware/Cardputer-Beat-Terminal-v1.0.bin) |
+| Piglet (XIAO ESP32-C5 + OLED) | Beat badge: pocket follower + coverage checker | [`firmware/Piglet-Beat-Badge-C5-v1.0.bin`](firmware/Piglet-Beat-Badge-C5-v1.0.bin) |
 
 If **Connect** fails, put the board in download mode and try again: hold **BOOT** (Heltec: **PRG**) while
 plugging in, or hold it, tap **RST**, then release. On the W10, turn the LoRa beat link on with a 1 s hold of
@@ -277,6 +278,28 @@ starts in FOLLOW so it still syncs with the rig.
 PSRAM **Disabled**, USB CDC On Boot **Enabled**. Library **M5Unified** (installs M5GFX). The beat engine is in
 `sticks3_pocket_conductor/beat_engine.h`, copied from the W10 sketch. Screens are in `ui.h`; preview them with
 `tools/build_preview.sh <M5GFX folder> <out folder> preview_stick.cpp`.
+
+## Beat badge: Piglet (XIAO ESP32-C5)
+
+![Piglet badge screens](docs/piglet-screens.png)
+
+Turns a [Piglet](https://github.com/Hamspiced/piglet) wardriver (XIAO ESP32-C5, 128x64 OLED, one button) into a
+pocket beat badge. It follows the beat over ESP-NOW through the Heltec bridge: big BPM, bar count, four beat boxes,
+and the whole screen flashes on beat 1. The **STATS** page shows the bridge's signal where you're standing, so you
+can walk the venue and check the booth link reaches everywhere.
+
+| Button | Following | In TAKE |
+|---|---|---|
+| press | switch page (BEAT / STATS) | tap tempo |
+| hold 2 s | take over (a bar fills under the header) | release |
+
+Flashing it replaces the Piglet firmware; reflash the Piglet to go back. The SD card and `wardriver.cfg` aren't touched.
+**Flash it:** [Flash Station](https://anubisdarkwatch.github.io/flash/) (Beat Badge card), or the `.bin` above at 0x0.
+If it won't connect, hold the button while plugging in USB.
+
+**Build from source:** board package **M5Stack** 3.3.x, board **M5StampC5** (same ESP32-C5 chip as the XIAO C5),
+library M5GFX. Pins: OLED SDA 23 / SCL 24 (0x3C, falls back to 0x3D), button GPIO0. 1-bit fonts:
+`tools/mkfonts_piglet.py`. Previews: `tools/build_preview.sh <M5GFX folder> <out folder> preview_piglet.cpp`.
 
 ## Beat Commander terminal: M5Stack Cardputer ADV
 
