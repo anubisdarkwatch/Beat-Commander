@@ -20,7 +20,7 @@
 #include "link.h"
 #include "ui.h"
 
-#define FW_VERSION   "1.0"
+#define FW_VERSION   "1.0.1"
 #define PIN_SDA      23
 #define PIN_SCL      24
 #define PIN_BTN      0      // shared with BOOT: ignored for the first 1.5 s after power-up
@@ -194,7 +194,7 @@ void setup() {
   settleUntil = millis() + 1500;
   oled.setup(0x3C);
   if (!oled.init()) { oled.setup(0x3D); oled.init(); }
-  oled.setRotation(0);
+  oled.setRotation(2);                 // v1.0.1: flipped 180° so it reads the right way up in the Piglet case
   initFonts();
   cv.setColorDepth(1);
   cv.createSprite(SW, SH);
