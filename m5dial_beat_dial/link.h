@@ -1,5 +1,5 @@
 // Beat Console link: ESP-NOW frames between the LoRa bridge and the CYD console.
-// Keep this file identical in cyd_beat_console/, m5dial_beat_dial/, sticks3_pocket_conductor/, heltec_v3_espnow_bridge/ and xiao_beat_gateway/.
+// Keep this file identical in every sketch folder that uses the beat link (cyd, m5dial, sticks3, heltec bridge, xiao gateway, cardputer).
 #pragma once
 #include <stdint.h>
 

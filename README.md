@@ -50,6 +50,7 @@ Every board in the system has a ready-made `.bin`:
 | M5Stack StickS3 | Pocket conductor (mic) / beat badge | [`firmware/StickS3-Pocket-Conductor-v1.0.5.bin`](firmware/StickS3-Pocket-Conductor-v1.0.5.bin) |
 | Seeed XIAO ESP32-S3 | Beat Gateway (USB MIDI clock + feed for Beat Hub) | [`firmware/Beat-Gateway-XIAO-S3-v1.3.bin`](firmware/Beat-Gateway-XIAO-S3-v1.3.bin) |
 | M5Stack Tab5 | Beat Command Center (big touch console, uses the Beat Gateway as its radio) | [`firmware/Tab5-Beat-Command-v1.0.5.bin`](firmware/Tab5-Beat-Command-v1.0.5.bin) |
+| M5Stack Cardputer ADV (or Cardputer) | Beat Commander terminal (keyboard booth controller) | [`firmware/Cardputer-Beat-Terminal-v1.0.bin`](firmware/Cardputer-Beat-Terminal-v1.0.bin) |
 
 If **Connect** fails, put the board in download mode and try again: hold **BOOT** (Heltec: **PRG**) while
 plugging in, or hold it, tap **RST**, then release. On the W10, turn the LoRa beat link on with a 1 s hold of
@@ -276,6 +277,34 @@ starts in FOLLOW so it still syncs with the rig.
 PSRAM **Disabled**, USB CDC On Boot **Enabled**. Library **M5Unified** (installs M5GFX). The beat engine is in
 `sticks3_pocket_conductor/beat_engine.h`, copied from the W10 sketch. Screens are in `ui.h`; preview them with
 `tools/build_preview.sh <M5GFX folder> <out folder> preview_stick.cpp`.
+
+## Beat Commander terminal: M5Stack Cardputer ADV
+
+![Cardputer terminal screens](docs/cardputer-screens.png)
+
+A keyboard booth controller on the Cardputer ADV (the original Cardputer works too). It talks ESP-NOW itself,
+so it needs nothing but the Heltec bridge. It follows the beat like the CYD and the Dial, and can take command:
+
+| Key | Does |
+|---|---|
+| `T` or the G0 button | take over / release |
+| `R` | release |
+| `SPACE` | tap tempo (takes over) |
+| type `128.5` then `ENTER` | take over at exactly that BPM (60-200). `DEL` fixes a digit, `` ` `` (esc) cancels |
+| `-` / `=` | tempo -/+ 0.1 BPM (with shift or fn: -/+ 1) |
+| `[` / `]` | nudge the beat 10 ms early / late |
+| `H` | help |
+
+The screen shows the BPM, bar count, beat bars in the conductor's colour, and the source / RSSI / lost / sent /
+nudge. The status pill reads LIVE, BOOTH, HOLD, TAKE or CLASH (another conductor is still on air).
+In TAKE it mirrors each bridge confirmation for the consoles, like the Dial and the StickS3.
+
+**Flash it:** [Flash Station](https://anubisdarkwatch.github.io/flash/) (Beat Commander terminal card), or the `.bin`
+above at 0x0. If it won't connect: hold **G0**, plug in USB, let go, then INSTALL.
+
+**Build from source:** Arduino IDE 2.x, board package **M5Stack** 3.x, board **M5Cardputer**, libraries
+**M5Cardputer** (1.1+, handles both keyboards), M5Unified, M5GFX. Fonts: `tools/mkfonts_cardputer.py`.
+Previews: `tools/build_preview.sh <M5GFX folder> <out folder> preview_cardputer.cpp`.
 
 ## Beat Command Center: M5Stack Tab5
 
