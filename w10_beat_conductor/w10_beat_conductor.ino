@@ -1,4 +1,4 @@
-// W10 Beat Conductor - mic beat detection -> screen + RGB LED light show + LoRa beat broadcast
+// Beat Commander: W10 conductor - mic beat detection -> screen + RGB LED light show + LoRa beat broadcast
 // Meshnology W10 (ESP32-S3, ES8311 mic, ST7789 240x240, WS2812 on GPIO48, E22/SX1262)
 // BOOT tap = tap tempo (taps override the mic for 15 s). BOOT hold 1 s = LoRa beat broadcast on/off.
 #include <Arduino.h>

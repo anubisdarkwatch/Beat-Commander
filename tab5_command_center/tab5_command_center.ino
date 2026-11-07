@@ -1,5 +1,5 @@
 // Beat Command Center on the M5Stack Tab5 (ESP32-P4, 5" 1280x720 touch).
-// The big booth screen for the W10 Beat Conductor: follows the beat link and can take it over.
+// The big booth screen for Beat Commander: follows the beat link and can take it over.
 //
 // Radio: the Tab5's own Wi-Fi chip can't do ESP-NOW, so the Beat Gateway (XIAO ESP32-S3, firmware v1.1+) plugs
 // into the Tab5's USB-A port and acts as its radio. Every frame on the link arrives as a text line; in TAKE the

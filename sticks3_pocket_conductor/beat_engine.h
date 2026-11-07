@@ -1,4 +1,4 @@
-// Beat engine from the W10 Beat Conductor (w10_beat_conductor.ino), unchanged apart from the scope size.
+// Beat engine from the Beat Commander W10 conductor (w10_beat_conductor.ino), unchanged apart from the scope size.
 // Onset strength (log-energy rise, kick band + full band) every 8 ms hop, tempo by autocorrelation over ~6 s,
 // beat clock phase-locked to strong onsets. No hardware: feed processHop() 128 mono samples at 16 kHz.
 #pragma once

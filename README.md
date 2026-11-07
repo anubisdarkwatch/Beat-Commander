@@ -1,12 +1,21 @@
-# W10 Beat Conductor
+# 𓃣 Beat Commander
 
-A beat-synced light show for the
-[Meshnology W10 LoRa AIoT Dev Kit](https://meshnology.com/products/meshnology-w10-lora-aiot-dev-kit-esp32-s3-long-range-iot-development-board)
-(ESP32-S3). It listens to the room through the onboard mic, locks onto the BPM, and flashes the
-1.54" screen and RGB LED on every beat. It can also broadcast each beat over LoRa so other boards can
-flash in sync, for DJ sets, stages or a crowd holding boards across a venue.
+One beat, every light in the room. Beat Commander is a family of small boards that share a single beat over
+LoRa and ESP-NOW: a **conductor** listens to the music and sets the tempo, **followers** flash in sync across the
+venue, and booth controllers can **take command** of the beat at any moment.
 
-Companion project: [W10-ISM-Waterfall](https://github.com/anubisdarkwatch/W10-ISM-Waterfall).
+It started on the [Meshnology W10 LoRa AIoT Dev Kit](https://meshnology.com/products/meshnology-w10-lora-aiot-dev-kit-esp32-s3-long-range-iot-development-board)
+(ESP32-S3), which still makes the best conductor: it listens to the room through the onboard mic, locks onto the
+BPM, flashes its 1.54" screen and RGB LED on every beat, and broadcasts each beat over LoRa.
+
+**The crew**
+- **Conductor:** Meshnology W10 (mic + LoRa), or the M5StickS3 Pocket Conductor
+- **Followers:** Heltec V3 (and the XIAO kits, coming)
+- **Bridge:** Heltec V3, linking LoRa and ESP-NOW for the booth gear
+- **Booth controllers:** CYD console, M5Dial, M5Stack Tab5 Command Center, Cardputer ADV terminal
+- **Gateway:** XIAO ESP32-S3 on USB: MIDI clock, Ableton Link, OSC, and the Tab5's radio
+
+Formerly "W10 Beat Conductor". Companion project: [W10-ISM-Waterfall](https://github.com/anubisdarkwatch/W10-ISM-Waterfall).
 
 **New:** the [Beat Command Center](#beat-command-center-m5stack-tab5) on the Tab5's 5" screen, and the [Beat Gateway](#beat-gateway-xiao-esp32-s3--beat-hub): a XIAO ESP32-S3 on USB that turns the beat link into MIDI clock, Ableton Link and OSC.
 Also: a touchscreen [booth console](#booth-console-cyd--heltec-v3-bridge) on a CYD that shows the beat link live and can take over the beat.
@@ -327,8 +336,8 @@ pick it as the MIDI clock source in Ableton, Traktor, Rekordbox, Resolume, a dru
 3. **Beat Hub on a Raspberry Pi** (Zero 2W, 3B, 4, 5; 64-bit Raspberry Pi OS for Ableton Link):
    ```
    sudo apt-get install -y git
-   git clone https://github.com/anubisdarkwatch/W10-Beat-Conductor.git
-   cd W10-Beat-Conductor/pi_beat_hub && sudo bash install.sh
+   git clone https://github.com/anubisdarkwatch/Beat-Commander.git
+   cd Beat-Commander/pi_beat_hub && sudo bash install.sh
    ```
    It starts on boot and finds the gateway by its USB name. Edit `config.ini` for OSC targets, then
    `sudo systemctl restart beat-hub`.

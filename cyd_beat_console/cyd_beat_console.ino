@@ -1,4 +1,4 @@
-// CYD Beat Console: a touchscreen booth display for the W10 Beat Conductor.
+// CYD Beat Console: a touchscreen booth display for Beat Commander.
 // Board: ESP32-2432S028R "Cheap Yellow Display" (ESP32, 2.8" 320x240 ILI9341, XPT2046 resistive touch).
 //
 // A Heltec V3 running heltec_v3_espnow_bridge listens to the beat link (916.0 MHz LoRa) and relays every

@@ -2,7 +2,7 @@
 """Beat Hub: turns the Beat Gateway's USB beats into Ableton Link, OSC and a live web page / JSON feed.
 
 Plug a XIAO ESP32-S3 running the Beat Gateway firmware into this computer (a Pi, or a laptop) and run this script.
-Every beat from the Beat Conductor link then:
+Every beat from the Beat Commander link then:
   - moves the Ableton Link session (tempo + bar phase): Ableton, Traktor, Resolume, Serato, phone apps...
   - sends OSC messages to the targets in config.ini (TouchDesigner, Resolume, QLC+, your own code)
   - shows on http://<this-machine>:8090 and in /api/state as JSON (TrackID reads this)

@@ -1,5 +1,5 @@
 // Beat Follower for Heltec WiFi LoRa 32 V3 (ESP32-S3 + SX1262 + 0.96" SSD1306 OLED)
-// Listens for W10 Beat Conductor packets on 916.0 MHz (SF7 / BW500) and flashes in sync.
+// Listens for Beat Commander (W10 conductor) packets on 916.0 MHz (SF7 / BW500) and flashes in sync.
 // If packets drop out, a flywheel keeps flashing at the last tempo for a few seconds.
 // Built by Anubis Darkwatch with Claude. MIT license.
 //

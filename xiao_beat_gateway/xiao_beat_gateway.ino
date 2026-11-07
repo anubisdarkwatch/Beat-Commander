@@ -1,5 +1,5 @@
 // Beat Gateway on a Seeed Studio XIAO ESP32-S3.
-// Listens to the Beat Conductor link (ESP-NOW channel 1) and hands every beat to whatever it is plugged into:
+// Listens to the Beat Commander link (ESP-NOW channel 1) and hands every beat to whatever it is plugged into:
 //   - USB MIDI clock (24 per beat) + Start on the downbeat / Stop when the beat is gone + a note per beat
 //     -> Ableton, Traktor, Rekordbox, Resolume, drum machines... no driver, no app needed.
 //   - USB serial text lines (one per beat) -> the Pi hub script (Ableton Link + OSC + web/JSON) and TrackID.

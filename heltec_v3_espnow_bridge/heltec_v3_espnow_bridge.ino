@@ -1,5 +1,5 @@
 // LoRa <-> ESP-NOW bridge for the CYD Beat Console, on a Heltec WiFi LoRa 32 V3.
-// Listens to the W10 Beat Conductor on 916.0 MHz (SF7 / BW500) and relays every beat, with RSSI / SNR,
+// Listens to the Beat Commander conductor (W10) on 916.0 MHz (SF7 / BW500) and relays every beat, with RSSI / SNR,
 // to the console over ESP-NOW. When the console takes over, it sends beats here and this board
 // transmits them on the beat link, so followers keep flashing from the booth.
 // Needs no screen: a Heltec V3 with a dead OLED works fine. White LED: blink = beat heard, double = beat sent.

@@ -1,4 +1,4 @@
-// M5Dial Beat Dial: a handheld takeover controller for the W10 Beat Conductor.
+// M5Dial Beat Dial: a handheld takeover controller for Beat Commander.
 // Board: M5Stack M5Dial (ESP32-S3 StampS3, 1.28" round 240x240 touch, rotary encoder, 13.56 MHz RFID).
 //
 // Talks ESP-NOW to the same Heltec V3 bridge as the CYD console, so it needs no radio of its own.
