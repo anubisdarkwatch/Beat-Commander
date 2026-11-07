@@ -20,10 +20,6 @@ struct View {
   const char* toast;
 };
 
-// 14x12 pixel-art jackal head (the hieroglyph font is too fine for a 1-bit OLED)
-const uint8_t JACKAL[] = {0x10,0x80,0x18,0xC0,0x1C,0xE0,0x1F,0xE0,0x3F,0xF0,0x3B,0xF8,0x3F,0xFC,0x1F,0x1C,0x1E,0x00,0x1E,0x00,0x3E,0x00,0x7E,0x00};
-constexpr int JACKAL_W = 14, JACKAL_H = 12;
-
 lgfx::VLWfont fBpm, fDec, fHead;
 lgfx::PointerWrapper wBpm, wDec, wHead;
 void initFonts() {
@@ -45,8 +41,7 @@ void draw(LGFX_Sprite& s, const View& v, uint32_t now) {
   int fg = invert ? 0 : 1, bg = invert ? 1 : 0;
   s.fillScreen(bg);
 
-  // header: jackal, status pill
-  s.drawBitmap(0, 0, JACKAL, JACKAL_W, JACKAL_H, fg);
+  // header: label, status pill
   const char* lbl = "WAIT";
   switch (v.link) {
     case LS_LIVE: lbl = v.viaBooth ? "BOOTH" : "LIVE"; break;
@@ -60,8 +55,8 @@ void draw(LGFX_Sprite& s, const View& v, uint32_t now) {
   else { s.drawRoundRect(SW - pw, 0, pw, 12, 3, fg); txt(s, &fHead, lbl, SW - pw / 2, 10, fg, baseline_center); }
   s.setFont(&fonts::Font0); s.setTextDatum(baseline_left); s.setTextColor(fg);
   char b[24];
-  if (v.page == PG_BEAT && active) { snprintf(b, sizeof(b), "BAR %lu", (unsigned long)v.bars); s.drawString(b, 17, 9); }
-  else s.drawString("BEAT BADGE", 17, 9);
+  if (v.page == PG_BEAT && active) { snprintf(b, sizeof(b), "BAR %lu", (unsigned long)v.bars); s.drawString(b, 0, 9); }
+  else s.drawString("BEAT BADGE", 0, 9);
 
   if (v.page == PG_BEAT) {
     // BPM

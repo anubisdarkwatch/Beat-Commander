@@ -64,7 +64,7 @@ def vlw(path, px, chars, jackal_px=0):
 FONTS = [
     ("F_BPM", ORB9, 36, "0123456789-", 0),           # the big number
     ("F_DEC", ORB9, 16, "0123456789.-", 0),          # its decimal
-    ("F_HEAD", ORB9, 11, ASCII, 13),                 # header + jackal
+    ("F_HEAD", ORB9, 11, ASCII, 0),                  # status pill, toasts
 ]
 
 with open(OUT, "w") as o:
