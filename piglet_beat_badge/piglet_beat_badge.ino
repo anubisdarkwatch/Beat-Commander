@@ -20,7 +20,7 @@
 #include "link.h"
 #include "ui.h"
 
-#define FW_VERSION   "1.0.1"
+#define FW_VERSION   "1.0.2"
 #define PIN_SDA      23
 #define PIN_SCL      24
 #define PIN_BTN      0      // shared with BOOT: ignored for the first 1.5 s after power-up

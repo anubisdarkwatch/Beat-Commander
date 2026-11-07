@@ -20,6 +20,10 @@ struct View {
   const char* toast;
 };
 
+// 14x12 pixel-art jackal head (the hieroglyph font is too fine for a 1-bit OLED)
+const uint8_t JACKAL[] = {0x10,0x80,0x18,0xC0,0x1C,0xE0,0x1F,0xE0,0x3F,0xF0,0x3B,0xF8,0x3F,0xFC,0x1F,0x1C,0x1E,0x00,0x1E,0x00,0x3E,0x00,0x7E,0x00};
+constexpr int JACKAL_W = 14, JACKAL_H = 12;
+
 lgfx::VLWfont fBpm, fDec, fHead;
 lgfx::PointerWrapper wBpm, wDec, wHead;
 void initFonts() {
@@ -42,7 +46,7 @@ void draw(LGFX_Sprite& s, const View& v, uint32_t now) {
   s.fillScreen(bg);
 
   // header: jackal, status pill
-  txt(s, &fHead, "\xEE\x80\x80", 0, 11, fg, baseline_left);
+  s.drawBitmap(0, 0, JACKAL, JACKAL_W, JACKAL_H, fg);
   const char* lbl = "WAIT";
   switch (v.link) {
     case LS_LIVE: lbl = v.viaBooth ? "BOOTH" : "LIVE"; break;
