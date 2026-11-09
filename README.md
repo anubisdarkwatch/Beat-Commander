@@ -13,7 +13,7 @@ BPM, flashes its 1.54" screen and RGB LED on every beat, and broadcasts each bea
 - **Followers:** Heltec V3, the Piglet beat badge (and the XIAO kits, coming)
 - **Bridge:** Heltec V3, linking LoRa and ESP-NOW for the booth gear
 - **Booth controllers:** CYD console, M5Dial, M5Stack Tab5 Command Center, Cardputer ADV terminal, LilyGo T-Deck Plus Beat Deck (its own LoRa radio)
-- **Visualizers:** TTGO T-Display and CYD screens that turn every beat into visuals
+- **Visualizers:** TTGO T-Display, CYD screens and the Rabbit-Labs Phantom, turning every beat into visuals
 - **Gateway:** XIAO ESP32-S3 on USB: MIDI clock, Ableton Link, OSC, and the Tab5's radio
 
 Formerly "W10 Beat Conductor". Companion project: [W10-ISM-Waterfall](https://github.com/anubisdarkwatch/W10-ISM-Waterfall).
@@ -54,9 +54,10 @@ Every board in the system has a ready-made `.bin`:
 | M5Stack Cardputer ADV (or Cardputer) | Beat Commander terminal (keyboard booth controller) | [`firmware/Cardputer-Beat-Terminal-v1.0.bin`](firmware/Cardputer-Beat-Terminal-v1.0.bin) |
 | LilyGo T-Deck Plus / T-Deck (915 MHz) | Beat Deck: keyboard controller with its own LoRa radio, visuals, optional bridge | [`firmware/TDeck-Beat-Deck-v1.1.bin`](firmware/TDeck-Beat-Deck-v1.1.bin) |
 | Piglet (XIAO ESP32-C5 + OLED) | Beat badge: pocket follower + coverage checker | [`firmware/Piglet-Beat-Badge-C5-v1.0.3.bin`](firmware/Piglet-Beat-Badge-C5-v1.0.3.bin) |
-| LilyGo TTGO T-Display | Beat Visualizer (6 beat-synced visual modes) | [`firmware/Beat-Visualizer-v1.2-ttgo.bin`](firmware/Beat-Visualizer-v1.2-ttgo.bin) |
-| CYD (ESP32-2432S028R) | Beat Visualizer, badge-sized 2.8" | [`firmware/Beat-Visualizer-v1.2-cyd.bin`](firmware/Beat-Visualizer-v1.2-cyd.bin) |
-| CYD 3.2" IPS (ESP32-2432S032C) | Beat Visualizer, 3.2" IPS + capacitive touch | [`firmware/Beat-Visualizer-v1.2-cyd32.bin`](firmware/Beat-Visualizer-v1.2-cyd32.bin) |
+| LilyGo TTGO T-Display | Beat Visualizer (6 beat-synced visual modes) | [`firmware/Beat-Visualizer-v1.3-ttgo.bin`](firmware/Beat-Visualizer-v1.3-ttgo.bin) |
+| CYD (ESP32-2432S028R) | Beat Visualizer, badge-sized 2.8" | [`firmware/Beat-Visualizer-v1.3-cyd.bin`](firmware/Beat-Visualizer-v1.3-cyd.bin) |
+| CYD 3.2" IPS (ESP32-2432S032C) | Beat Visualizer, 3.2" IPS + capacitive touch | [`firmware/Beat-Visualizer-v1.3-cyd32.bin`](firmware/Beat-Visualizer-v1.3-cyd32.bin) |
+| Rabbit-Labs Phantom (ESP32-2432S024) | Beat Visualizer, 2.4" handheld (resistive or capacitive) | [`firmware/Beat-Visualizer-v1.3-phantom.bin`](firmware/Beat-Visualizer-v1.3-phantom.bin) |
 
 If **Connect** fails, put the board in download mode and try again: hold **BOOT** (Heltec: **PRG**) while
 plugging in, or hold it, tap **RST**, then release. On the W10, turn the LoRa beat link on with a 1 s hold of
@@ -292,7 +293,7 @@ PSRAM **Disabled**, USB CDC On Boot **Enabled**. Library **M5Unified** (installs
 `sticks3_pocket_conductor/beat_engine.h`, copied from the W10 sketch. Screens are in `ui.h`; preview them with
 `tools/build_preview.sh <M5GFX folder> <out folder> preview_stick.cpp`.
 
-## Beat Visualizer: TTGO T-Display, CYD and 3.2" IPS CYD
+## Beat Visualizer: TTGO T-Display, CYD, 3.2" IPS CYD and Rabbit-Labs Phantom
 
 ![Beat Visualizer modes](docs/visualizer.gif)
 
@@ -312,7 +313,8 @@ and every beat, the conductor's tempo and its colour drive six modes:
 so it's never dark. The colour follows the conductor's hue, which changes every bar.
 
 **TTGO T-Display** (1.14"): left button = next mode, hold = AUTO on/off; right button = brightness, hold = turn 180°.
-**CYD** (2.8") and **3.2" IPS CYD** (ESP32-2432S032C / C_I): the touch screen does everything, by how long you hold:
+**CYD** (2.8"), **3.2" IPS CYD** (ESP32-2432S032C / C_I) and **Rabbit-Labs Phantom** (2.4", ESP32-2432S024R or C):
+the touch screen (finger or stylus) does everything, by how long you hold:
 
 | Touch | Does |
 |---|---|
@@ -327,10 +329,14 @@ The RGB LED on the back blips in the beat colour. Settings are remembered.
 The 3.2"'s IPS panel (BGR, inverted, as in Sunton/Freenove's own setup) gives the deepest blacks of the three.
 Its side button is the battery switch on the charger chip and isn't connected to the ESP32. On battery, the charger
 switches itself off about 30 s after a power-off (the load is too small), and the side button turns it back on.
+The **Phantom** is a 2.4" CYD in a handheld case (same display pins, backlight on 27). One build covers both touch
+versions: it looks for the capacitive CST820 first and falls back to the resistive XPT2046 on the display's bus.
+Its side button is its own power switch (double-click = off); the 10 s hold works too. Pin details thanks to
+[SquachWatch-CYD](https://github.com/skizzophrenic/SquachWatch-CYD).
 
 **Flash it:** [Flash Station](https://anubisdarkwatch.github.io/flash/) (Beat Visualizer cards), or the `.bin`s above at 0x0.
 **Build from source:** esp32 by Espressif 3.x, board **ESP32 Dev Module**, partition **Huge APP**, library **LovyanGFX**.
-Pick the board with `#define BOARD_TTGO` / `BOARD_CYD` / `BOARD_CYD32` at the top of `beat_visualizer.ino`. All the visuals are in
+Pick the board with `#define BOARD_TTGO` / `BOARD_CYD` / `BOARD_CYD32` / `BOARD_PHANTOM` at the top of `beat_visualizer.ino`. All the visuals are in
 `viz.h`, which draws into a sprite of any size, so new screens only need a display config.
 Previews and the GIF: `tools/build_preview.sh <M5GFX folder> <out folder> preview_viz.cpp`.
 

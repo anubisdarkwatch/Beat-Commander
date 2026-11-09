@@ -3,7 +3,7 @@
 // and its colour drive six visual modes: PULSE, TUNNEL, BARS, WARP, PLASMA and BPM. With no link it runs a dim
 // 120 BPM demo, so it always looks alive.
 //
-// Boards (pick one below, or pass -DBOARD_TTGO / -DBOARD_CYD / -DBOARD_CYD32 when building)
+// Boards (pick one below, or pass -DBOARD_TTGO / -DBOARD_CYD / -DBOARD_CYD32 / -DBOARD_PHANTOM when building)
 //   TTGO  LilyGo TTGO T-Display (ESP32, 1.14" 240x135)
 //         left button (GPIO0):   press = next mode,   hold = AUTO on/off (new mode every 8 bars)
 //         right button (GPIO35): press = brightness,  hold = turn the screen 180°
@@ -14,15 +14,18 @@
 //   CYD32 ESP32-2432S032C(-I), the 3.2" IPS CYD with capacitive touch (ST7789, GT911): tap = next mode,
 //         hold 1.5 s = AUTO on/off, hold 4 s = next colour / mirror / invert setting, hold 10 s = power off
 //         (BOOT works too where it reads right)
+//   PHANTOM Rabbit-Labs Phantom (Sunton ESP32-2432S024, 2.4" 320x240 ILI9341), resistive or capacitive touch:
+//         same touch gestures as the CYD (tap = next mode, 1.5 s AUTO, 4 s setting, 10 s off). Side button = its own
+//         power switch (double-click off). Both touch versions work: it looks for the capacitive chip first.
 //
 // Built by Anubis Darkwatch with Claude. MIT license.
 // Arduino IDE 2.x, esp32 by Espressif 3.x, board "ESP32 Dev Module", partition "Huge APP". Library: LovyanGFX.
 
-#if !defined(BOARD_CYD) && !defined(BOARD_TTGO) && !defined(BOARD_CYD32)
-#define BOARD_TTGO        // <- change to BOARD_CYD (2.8") or BOARD_CYD32 (3.2" IPS) for a Cheap Yellow Display
+#if !defined(BOARD_CYD) && !defined(BOARD_TTGO) && !defined(BOARD_CYD32) && !defined(BOARD_PHANTOM)
+#define BOARD_TTGO        // <- or BOARD_CYD (2.8"), BOARD_CYD32 (3.2" IPS), BOARD_PHANTOM (Rabbit-Labs Phantom 2.4")
 #endif
-#ifdef BOARD_CYD32
-#define BOARD_CYD         // the 3.2" shares everything with the 2.8" CYD except the panel, backlight and touch
+#if defined(BOARD_CYD32) || defined(BOARD_PHANTOM)
+#define BOARD_CYD         // the 3.2" and the Phantom share everything with the 2.8" CYD except backlight and touch
 #endif
 
 #include <WiFi.h>
@@ -35,7 +38,7 @@
 #include "link.h"
 #include "viz.h"
 
-#define FW_VERSION  "1.2"
+#define FW_VERSION  "1.3"
 #define FLYWHEEL_MS 4000
 
 // ================= display =================
@@ -48,7 +51,19 @@ class LGFX_Board : public lgfx::LGFX_Device {
   lgfx::Panel_ST7789 _panel;
 #endif
   lgfx::Bus_SPI _bus; lgfx::Light_PWM _light;
+#ifdef BOARD_PHANTOM
+  lgfx::Touch_XPT2046 _touch;
+#endif
 public:
+#ifdef BOARD_PHANTOM
+  void addResistiveTouch() {                              // Phantom ...S024R: XPT2046 on the display's own SPI bus, CS 33
+    auto t = _touch.config();
+    t.spi_host = HSPI_HOST; t.freq = 2500000; t.pin_sclk = 14; t.pin_mosi = 13; t.pin_miso = 12; t.pin_cs = 33;
+    t.pin_int = -1; t.bus_shared = true; t.offset_rotation = 0;
+    t.x_min = 300; t.x_max = 3900; t.y_min = 200; t.y_max = 3700;
+    _touch.config(t); _panel.setTouch(&_touch);
+  }
+#endif
   void setup(bool bgr) {
     auto b = _bus.config();
 #ifdef BOARD_CYD
@@ -70,7 +85,7 @@ public:
     p.rgb_order = bgr;
     _panel.config(p);
     auto l = _light.config();
-#if defined(BOARD_CYD32)
+#if defined(BOARD_CYD32) || defined(BOARD_PHANTOM)
     l.pin_bl = 27;
 #elif defined(BOARD_CYD)
     l.pin_bl = 21;
@@ -115,6 +130,25 @@ void gtInit() {
   Serial.printf("# GT911 touch %s\n", gtAddr ? "found" : "not found");
 }
 bool rawTouch() { return gtTouched(); }
+const uint8_t LED_R = 4, LED_G = 16, LED_B = 17;                    // RGB LED, active low
+#elif defined(BOARD_PHANTOM)
+Btn bBoot = {0, false, 0, false};
+uint8_t capAddr = 0;                                                 // CST820 (capacitive ...S024C) on I2C 33/32, reset 25
+bool capInit() {
+  pinMode(25, OUTPUT); digitalWrite(25, LOW); delay(10); digitalWrite(25, HIGH); delay(60);
+  Wire.begin(33, 32, 400000);
+  Wire.beginTransmission(0x15); if (Wire.endTransmission() == 0) capAddr = 0x15;
+  if (!capAddr) Wire.end();                                          // resistive board: 33 is the touch chip select
+  return capAddr != 0;
+}
+bool rawTouch() {
+  if (capAddr) {                                                     // register 0x02: number of fingers
+    Wire.beginTransmission(capAddr); Wire.write(0x02);
+    if (Wire.endTransmission(false) != 0 || Wire.requestFrom(capAddr, (uint8_t)1) != 1) return false;
+    return (Wire.read() & 0x0F) != 0;
+  }
+  lgfx::touch_point_t tp; return tft.getTouchRaw(&tp, 1) > 0;      // XPT2046: only reports above its pressure threshold
+}
 const uint8_t LED_R = 4, LED_G = 16, LED_B = 17;                    // RGB LED, active low
 #elif defined(BOARD_CYD)
 Btn bBoot = {0, false, 0, false};
@@ -251,6 +285,12 @@ void setup() {
   pinMode(0, INPUT_PULLUP);
   gtInit();
   for (uint8_t p : {LED_R, LED_G, LED_B}) { pinMode(p, OUTPUT); analogWrite(p, 255); }
+#elif defined(BOARD_PHANTOM)
+  pinMode(0, INPUT_PULLUP); pinMode(21, INPUT);                      // 21 is the capacitive chip's interrupt here: leave it alone
+  bool cap = capInit();
+  if (!cap) tft.addResistiveTouch();
+  Serial.printf("# Phantom touch: %s\n", cap ? "capacitive CST820" : "resistive XPT2046");
+  for (uint8_t p : {LED_R, LED_G, LED_B}) { pinMode(p, OUTPUT); analogWrite(p, 255); }
 #elif defined(BOARD_CYD)
   pinMode(0, INPUT_PULLUP); pinMode(36, INPUT);
   for (uint8_t p : {LED_R, LED_G, LED_B}) { pinMode(p, OUTPUT); analogWrite(p, 255); }
@@ -283,12 +323,17 @@ void setup() {
 #endif
   if (!cv.createSprite(tft.width(), tft.height())) Serial.println("# sprite alloc failed");
   rxQ = xQueueCreate(16, sizeof(LinkFrame));
+  tft.setBrightness(40);                                   // Wi-Fi RF calibration + full backlight can brown out a weak USB port
   radioUp = espnowInit();
+  delay(150);
+  tft.setBrightness(brightLevels[brightIdx]);
   Serial.printf("# panel setting %u (BGR %u, mirror %u, invert %u), BOOT reads %s\n", panelMode, panelMode & 1, (panelMode >> 1) & 1,
                 (panelMode >> 2) & 1, digitalRead(0) ? "released" : "PRESSED");
   Serial.printf("# Beat Visualizer v%s (%s) | ESP-NOW %s\n", FW_VERSION,
 #if defined(BOARD_CYD32)
                 "CYD 3.2 IPS",
+#elif defined(BOARD_PHANTOM)
+                "RL Phantom 2.4",
 #elif defined(BOARD_CYD)
                 "CYD",
 #else
