@@ -3,36 +3,43 @@
 // and its colour drive six visual modes: PULSE, TUNNEL, BARS, WARP, PLASMA and BPM. With no link it runs a dim
 // 120 BPM demo, so it always looks alive.
 //
-// Boards (pick one below, or pass -DBOARD_CYD / -DBOARD_TTGO when building)
+// Boards (pick one below, or pass -DBOARD_TTGO / -DBOARD_CYD / -DBOARD_CYD32 when building)
 //   TTGO  LilyGo TTGO T-Display (ESP32, 1.14" 240x135)
 //         left button (GPIO0):   press = next mode,   hold = AUTO on/off (new mode every 8 bars)
 //         right button (GPIO35): press = brightness,  hold = turn the screen 180°
 //   CYD   ESP32-2432S028R "Cheap Yellow Display" (2.8" 320x240), the badge-sized one
-//         tap the screen = next mode,  BOOT press = AUTO on/off,  BOOT hold 2 s = next colour / mirror setting
+//         tap the screen = next mode,  BOOT press = AUTO on/off,  BOOT hold 2 s = next colour / mirror / invert setting
 //         (CYD panels differ: if colours or text look wrong, hold BOOT until it looks right). RGB LED flashes too.
+//   CYD32 ESP32-2432S032C, the 3.2" IPS CYD with capacitive touch (ST7789, GT911): same controls as the CYD
 //
 // Built by Anubis Darkwatch with Claude. MIT license.
 // Arduino IDE 2.x, esp32 by Espressif 3.x, board "ESP32 Dev Module", partition "Huge APP". Library: LovyanGFX.
 
-#if !defined(BOARD_CYD) && !defined(BOARD_TTGO)
-#define BOARD_TTGO        // <- change to BOARD_CYD for the Cheap Yellow Display
+#if !defined(BOARD_CYD) && !defined(BOARD_TTGO) && !defined(BOARD_CYD32)
+#define BOARD_TTGO        // <- change to BOARD_CYD (2.8") or BOARD_CYD32 (3.2" IPS) for a Cheap Yellow Display
+#endif
+#ifdef BOARD_CYD32
+#define BOARD_CYD         // the 3.2" shares everything with the 2.8" CYD except the panel, backlight and touch
 #endif
 
 #include <WiFi.h>
 #include <esp_now.h>
 #include <esp_wifi.h>
 #include <Preferences.h>
+#include <Wire.h>
 #define LGFX_USE_V1
 #include <LovyanGFX.hpp>
 #include "link.h"
 #include "viz.h"
 
-#define FW_VERSION  "1.0"
+#define FW_VERSION  "1.1"
 #define FLYWHEEL_MS 4000
 
 // ================= display =================
 class LGFX_Board : public lgfx::LGFX_Device {
-#ifdef BOARD_CYD
+#if defined(BOARD_CYD32)
+  lgfx::Panel_ST7789 _panel;
+#elif defined(BOARD_CYD)
   lgfx::Panel_ILI9341 _panel;
 #else
   lgfx::Panel_ST7789 _panel;
@@ -49,7 +56,9 @@ public:
     b.spi_mode = 0; b.dma_channel = SPI_DMA_CH_AUTO;
     _bus.config(b); _panel.setBus(&_bus);
     auto p = _panel.config();
-#ifdef BOARD_CYD
+#if defined(BOARD_CYD32)
+    p.pin_cs = 15; p.pin_rst = -1; p.panel_width = 240; p.panel_height = 320; p.invert = true; p.readable = false;
+#elif defined(BOARD_CYD)
     p.pin_cs = 15; p.pin_rst = -1; p.panel_width = 240; p.panel_height = 320; p.invert = false; p.readable = true;
 #else
     p.pin_cs = 5; p.pin_rst = 23; p.panel_width = 135; p.panel_height = 240; p.offset_x = 52; p.offset_y = 40;
@@ -58,7 +67,9 @@ public:
     p.rgb_order = bgr;
     _panel.config(p);
     auto l = _light.config();
-#ifdef BOARD_CYD
+#if defined(BOARD_CYD32)
+    l.pin_bl = 27;
+#elif defined(BOARD_CYD)
     l.pin_bl = 21;
 #else
     l.pin_bl = 4;
@@ -81,7 +92,36 @@ int pollBtn(Btn& b, uint32_t longMs) {                  // 0 none, 1 press (on r
   else if (!d && b.down) { b.down = false; if (!b.longFired && now - b.t0 > 30) return 1; }
   return 0;
 }
-#ifdef BOARD_CYD
+#if defined(BOARD_CYD32)
+Btn bBoot = {0, false, 0, false};
+uint8_t gtAddr = 0;                                                 // GT911 capacitive touch on I2C 33/32
+bool gtTouched() {                                                  // reads "touch points" from the status register
+  if (!gtAddr) return false;
+  Wire.beginTransmission(gtAddr); Wire.write(0x81); Wire.write(0x4E);
+  if (Wire.endTransmission(false) != 0 || Wire.requestFrom(gtAddr, (uint8_t)1) != 1) return false;
+  uint8_t st = Wire.read();
+  if (st & 0x80) { Wire.beginTransmission(gtAddr); Wire.write(0x81); Wire.write(0x4E); Wire.write(0); Wire.endTransmission(); }
+  return (st & 0x80) && (st & 0x0F);
+}
+void gtInit() {
+  pinMode(25, OUTPUT); pinMode(21, OUTPUT);                         // reset with INT low -> address 0x5D
+  digitalWrite(25, LOW); digitalWrite(21, LOW); delay(10); digitalWrite(25, HIGH); delay(10);
+  pinMode(21, INPUT); delay(50);
+  Wire.begin(33, 32, 400000);
+  for (uint8_t a : {0x5D, 0x14}) { Wire.beginTransmission(a); if (Wire.endTransmission() == 0) { gtAddr = a; break; } }
+  Serial.printf("# GT911 touch %s\n", gtAddr ? "found" : "not found");
+}
+struct { bool down = false; uint32_t last = 0, upSince = 0; } tch;
+int pollTouch(uint32_t now) {                                       // 1 = a new tap
+  if (now - tch.last < 25) return 0;
+  tch.last = now;
+  bool t = gtTouched();
+  if (t) { tch.upSince = 0; if (!tch.down) { tch.down = true; return 1; } }
+  else if (tch.down) { if (!tch.upSince) tch.upSince = now; else if (now - tch.upSince > 120) tch.down = false; }
+  return 0;
+}
+const uint8_t LED_R = 4, LED_G = 16, LED_B = 17;                    // RGB LED, active low
+#elif defined(BOARD_CYD)
 Btn bBoot = {0, false, 0, false}, bTouch = {36, false, 0, false};   // XPT2046 IRQ goes low while touched
 const uint8_t LED_R = 4, LED_G = 16, LED_B = 17;                    // RGB LED, active low
 #else
@@ -168,10 +208,14 @@ void setup() {
   vs.autoMode = prefs.getBool("auto", true);
   brightIdx = prefs.getUChar("bright", 0) % 3;
   flipped = prefs.getBool("flip", false);
-  panelMode = prefs.getUChar("panel", 0) & 3;
+  panelMode = prefs.getUChar("panel", 0) & 7;
   vs.bpm = 120; vs.hue = 160; vs.hud = true; vs.src = SRC_DEMO; vs.labelUntil = millis() + 2500;
 
-#ifdef BOARD_CYD
+#if defined(BOARD_CYD32)
+  pinMode(0, INPUT_PULLUP);
+  gtInit();
+  for (uint8_t p : {LED_R, LED_G, LED_B}) { pinMode(p, OUTPUT); analogWrite(p, 255); }
+#elif defined(BOARD_CYD)
   pinMode(0, INPUT_PULLUP); pinMode(36, INPUT);
   for (uint8_t p : {LED_R, LED_G, LED_B}) { pinMode(p, OUTPUT); analogWrite(p, 255); }
 #else
@@ -179,6 +223,15 @@ void setup() {
 #endif
   tft.setup(panelMode & 1);
   tft.init();
+#ifdef BOARD_CYD
+  if (panelMode & 4) tft.invertDisplay(
+#ifdef BOARD_CYD32
+    false
+#else
+    true
+#endif
+  );                                                       // setting bit 2: colours inverted from the default
+#endif
   applyRotation();
   tft.setBrightness(brightLevels[brightIdx]);
   tft.fillScreen(TFT_BLACK);
@@ -192,7 +245,9 @@ void setup() {
   rxQ = xQueueCreate(16, sizeof(LinkFrame));
   radioUp = espnowInit();
   Serial.printf("# Beat Visualizer v%s (%s) | ESP-NOW %s\n", FW_VERSION,
-#ifdef BOARD_CYD
+#if defined(BOARD_CYD32)
+                "CYD 3.2 IPS",
+#elif defined(BOARD_CYD)
                 "CYD",
 #else
                 "TTGO T-Display",
@@ -208,10 +263,14 @@ void loop() {
   uint32_t now = millis();
   linkStep(now);
 #ifdef BOARD_CYD
+#ifdef BOARD_CYD32
+  int t = pollTouch(now), b = pollBtn(bBoot, 2000);
+#else
   int t = pollBtn(bTouch, 100000), b = pollBtn(bBoot, 2000);
+#endif
   if (t == 1) nextMode(now);
   if (b == 1) toggleAuto(now);
-  if (b == 2) { panelMode = (panelMode + 1) & 3; prefs.putUChar("panel", panelMode); delay(100); ESP.restart(); }
+  if (b == 2) { panelMode = (panelMode + 1) & 7; prefs.putUChar("panel", panelMode); delay(100); ESP.restart(); }
   static uint32_t ledOff = 0;                              // LED blip lasts ~80 ms
   if (now - vs.beatMs > 80 && ledOff != vs.beatId) { ledOff = vs.beatId; for (uint8_t p : {LED_R, LED_G, LED_B}) analogWrite(p, 255); }
 #else

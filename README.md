@@ -53,8 +53,9 @@ Every board in the system has a ready-made `.bin`:
 | M5Stack Tab5 | Beat Command Center (big touch console, uses the Beat Gateway as its radio) | [`firmware/Tab5-Beat-Command-v1.0.5.bin`](firmware/Tab5-Beat-Command-v1.0.5.bin) |
 | M5Stack Cardputer ADV (or Cardputer) | Beat Commander terminal (keyboard booth controller) | [`firmware/Cardputer-Beat-Terminal-v1.0.bin`](firmware/Cardputer-Beat-Terminal-v1.0.bin) |
 | Piglet (XIAO ESP32-C5 + OLED) | Beat badge: pocket follower + coverage checker | [`firmware/Piglet-Beat-Badge-C5-v1.0.3.bin`](firmware/Piglet-Beat-Badge-C5-v1.0.3.bin) |
-| LilyGo TTGO T-Display | Beat Visualizer (6 beat-synced visual modes) | [`firmware/Beat-Visualizer-v1.0-ttgo.bin`](firmware/Beat-Visualizer-v1.0-ttgo.bin) |
-| CYD (ESP32-2432S028R) | Beat Visualizer, badge-sized 2.8" | [`firmware/Beat-Visualizer-v1.0-cyd.bin`](firmware/Beat-Visualizer-v1.0-cyd.bin) |
+| LilyGo TTGO T-Display | Beat Visualizer (6 beat-synced visual modes) | [`firmware/Beat-Visualizer-v1.1-ttgo.bin`](firmware/Beat-Visualizer-v1.1-ttgo.bin) |
+| CYD (ESP32-2432S028R) | Beat Visualizer, badge-sized 2.8" | [`firmware/Beat-Visualizer-v1.1-cyd.bin`](firmware/Beat-Visualizer-v1.1-cyd.bin) |
+| CYD 3.2" IPS (ESP32-2432S032C) | Beat Visualizer, 3.2" IPS + capacitive touch | [`firmware/Beat-Visualizer-v1.1-cyd32.bin`](firmware/Beat-Visualizer-v1.1-cyd32.bin) |
 
 If **Connect** fails, put the board in download mode and try again: hold **BOOT** (Heltec: **PRG**) while
 plugging in, or hold it, tap **RST**, then release. On the W10, turn the LoRa beat link on with a 1 s hold of
@@ -282,7 +283,7 @@ PSRAM **Disabled**, USB CDC On Boot **Enabled**. Library **M5Unified** (installs
 `sticks3_pocket_conductor/beat_engine.h`, copied from the W10 sketch. Screens are in `ui.h`; preview them with
 `tools/build_preview.sh <M5GFX folder> <out folder> preview_stick.cpp`.
 
-## Beat Visualizer: TTGO T-Display and CYD
+## Beat Visualizer: TTGO T-Display, CYD and 3.2" IPS CYD
 
 ![Beat Visualizer modes](docs/visualizer.gif)
 
@@ -305,10 +306,12 @@ so it's never dark. The colour follows the conductor's hue, which changes every 
 **CYD** (2.8", badge-sized): tap the screen = next mode; BOOT = AUTO on/off; hold BOOT 2 s = next colour/mirror
 setting (CYD panels differ: if colours or text look wrong, hold BOOT until they look right). The RGB LED on the back
 blips in the beat colour too. Settings are remembered.
+**3.2" IPS CYD** (ESP32-2432S032C, ST7789 + GT911 capacitive touch): same controls as the 2.8" CYD. Its IPS panel
+gives the deepest blacks and best colour of the three. If colours look like a photo negative, hold BOOT until they're right.
 
 **Flash it:** [Flash Station](https://anubisdarkwatch.github.io/flash/) (Beat Visualizer cards), or the `.bin`s above at 0x0.
 **Build from source:** esp32 by Espressif 3.x, board **ESP32 Dev Module**, partition **Huge APP**, library **LovyanGFX**.
-Pick the board with `#define BOARD_TTGO` / `BOARD_CYD` at the top of `beat_visualizer.ino`. All the visuals are in
+Pick the board with `#define BOARD_TTGO` / `BOARD_CYD` / `BOARD_CYD32` at the top of `beat_visualizer.ino`. All the visuals are in
 `viz.h`, which draws into a sprite of any size, so new screens only need a display config.
 Previews and the GIF: `tools/build_preview.sh <M5GFX folder> <out folder> preview_viz.cpp`.
 
