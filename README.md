@@ -12,7 +12,7 @@ BPM, flashes its 1.54" screen and RGB LED on every beat, and broadcasts each bea
 - **Conductor:** Meshnology W10 (mic + LoRa), or the M5StickS3 Pocket Conductor
 - **Followers:** Heltec V3, the Piglet beat badge (and the XIAO kits, coming)
 - **Bridge:** Heltec V3, linking LoRa and ESP-NOW for the booth gear
-- **Booth controllers:** CYD console, M5Dial, M5Stack Tab5 Command Center, Cardputer ADV terminal
+- **Booth controllers:** CYD console, M5Dial, M5Stack Tab5 Command Center, Cardputer ADV terminal, LilyGo T-Deck Plus Beat Deck (its own LoRa radio)
 - **Visualizers:** TTGO T-Display and CYD screens that turn every beat into visuals
 - **Gateway:** XIAO ESP32-S3 on USB: MIDI clock, Ableton Link, OSC, and the Tab5's radio
 
@@ -52,6 +52,7 @@ Every board in the system has a ready-made `.bin`:
 | Seeed XIAO ESP32-S3 | Beat Gateway (USB MIDI clock + feed for Beat Hub) | [`firmware/Beat-Gateway-XIAO-S3-v1.3.bin`](firmware/Beat-Gateway-XIAO-S3-v1.3.bin) |
 | M5Stack Tab5 | Beat Command Center (big touch console, uses the Beat Gateway as its radio) | [`firmware/Tab5-Beat-Command-v1.0.5.bin`](firmware/Tab5-Beat-Command-v1.0.5.bin) |
 | M5Stack Cardputer ADV (or Cardputer) | Beat Commander terminal (keyboard booth controller) | [`firmware/Cardputer-Beat-Terminal-v1.0.bin`](firmware/Cardputer-Beat-Terminal-v1.0.bin) |
+| LilyGo T-Deck Plus / T-Deck (915 MHz) | Beat Deck: keyboard controller with its own LoRa radio, visuals, optional bridge | [`firmware/TDeck-Beat-Deck-v1.0.bin`](firmware/TDeck-Beat-Deck-v1.0.bin) |
 | Piglet (XIAO ESP32-C5 + OLED) | Beat badge: pocket follower + coverage checker | [`firmware/Piglet-Beat-Badge-C5-v1.0.3.bin`](firmware/Piglet-Beat-Badge-C5-v1.0.3.bin) |
 | LilyGo TTGO T-Display | Beat Visualizer (6 beat-synced visual modes) | [`firmware/Beat-Visualizer-v1.2-ttgo.bin`](firmware/Beat-Visualizer-v1.2-ttgo.bin) |
 | CYD (ESP32-2432S028R) | Beat Visualizer, badge-sized 2.8" | [`firmware/Beat-Visualizer-v1.2-cyd.bin`](firmware/Beat-Visualizer-v1.2-cyd.bin) |
@@ -374,6 +375,46 @@ above at 0x0. If it won't connect: hold **G0**, plug in USB, let go, then INSTAL
 **Build from source:** Arduino IDE 2.x, board package **M5Stack** 3.x, board **M5Cardputer**, libraries
 **M5Cardputer** (1.1+, handles both keyboards), M5Unified, M5GFX. Fonts: `tools/mkfonts_cardputer.py`.
 Previews: `tools/build_preview.sh <M5GFX folder> <out folder> preview_cardputer.cpp`.
+
+## Beat Deck: LilyGo T-Deck Plus (915 MHz)
+
+![T-Deck Beat Deck screens](docs/tdeck-screens.png)
+
+The T-Deck Plus has its own SX1262 LoRa radio, so the Beat Deck hears the conductor **directly** on 916.0 MHz and
+also follows the ESP-NOW beat link. When it takes command it transmits on LoRa itself (no Heltec bridge needed) and
+mirrors every beat on ESP-NOW, so LoRa followers, the CYD, Dial, Cardputer, badge and visualizers all follow it.
+The plain T-Deck (915 MHz) runs the same firmware.
+
+| Control | Does |
+|---|---|
+| trackball click or `T` | take over / release |
+| `R` | release |
+| `SPACE` | tap tempo (takes over) |
+| `alt` + digits, then `ENTER` | take over at exactly that BPM (60-200). The digits are the alt symbols on the letter keys. `DEL` fixes, `X` cancels |
+| trackball up / down | tempo +/- 0.1 BPM (`alt` `+` / `-`: +/- 1) |
+| trackball left / right | nudge the beat 10 ms early / late |
+| `V` or a tap on the screen | console / full-screen visuals |
+| `M` / `A` | next visual / auto visuals (new one every 8 bars) |
+| `G` | bridge role on / off (saved) |
+| `B` / `D` | brightness / display fix (colour order, flip, invert: press until it looks right) |
+| `H` | help |
+
+The console shows the BPM, bar count, beat bars in the conductor's colour, and source (CONDUCTOR, BOOTH, DECK,
+FLYWHEEL), how the beat arrived (LORA or ESP-NOW), RSSI, lost, sent and nudge. The visuals page is the same six
+modes as the Beat Visualizer, with a purple frame while you have the beat.
+
+**Bridge role** (`G`): the Deck then does the Heltec bridge's job too: it relays every LoRa beat to ESP-NOW,
+transmits other controllers' takeover beats on LoRa and confirms them, and sends the bridge heartbeat. Turn it on
+only when there's no Heltec bridge running, or the two will transmit on top of each other.
+
+**Flash it:** [Flash Station](https://anubisdarkwatch.github.io/flash/) (Beat Deck card), or the `.bin` above at 0x0.
+If it won't connect: turn it on while holding the **trackball** pressed in (that's BOOT), plug in USB, then INSTALL.
+Replaces the T-Deck's current firmware (Meshtastic etc.); reflash that to go back.
+
+**Build from source:** Arduino IDE 2.x, esp32 by Espressif 3.x, board **ESP32S3 Dev Module**, Flash 16MB,
+PSRAM **OPI PSRAM**, partition **16M Flash (3MB APP/9.9MB FATFS)**, USB CDC On Boot **Enabled**. Library:
+LovyanGFX. Fonts: `tools/mkfonts_viz.py` + `tools/mkfonts_tdeck.py`.
+Previews: `tools/build_preview.sh <M5GFX folder> <out folder> preview_tdeck.cpp`.
 
 ## Beat Command Center: M5Stack Tab5
 
