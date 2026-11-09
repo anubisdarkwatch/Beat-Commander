@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include "gfx.h"
 
-#define FW_VERSION "v1.0.2"
+#define FW_VERSION "v1.0.4"
 
 enum Mode : uint8_t { M_FOLLOW, M_TAKE };
 enum LinkState : uint8_t { LS_WAIT, LS_LIVE, LS_HOLD, LS_TAKE };
@@ -18,6 +18,7 @@ struct UiState {
   uint32_t rx = 0, lost = 0, sent = 0, fail = 0;
   int nudgeMs = 0;                              // total phase nudge this takeover
   int pressed = -1;                             // button being held
+  bool viaBooth = false;                        // following a booth controller rather than a LoRa conductor
 };
 
 // ---------- layout ----------
@@ -95,14 +96,14 @@ static void drawStage(const UiState& s) {
   text(ORB_14, "BPM", x + 4, Y_STAGE + 60, bright ? C_BLACK : C_AMB);
 
   // source, top right
-  const char* src = s.mode == M_TAKE ? "BOOTH" : (s.link == LS_HOLD ? "FLYWHEEL" : "W10");
+  const char* src = s.mode == M_TAKE ? "CONSOLE" : s.link == LS_HOLD ? "FLYWHEEL" : s.viaBooth ? "BOOTH" : "CONDUCTOR";
   textR(STM_12, "SOURCE", SCR_W - 10, Y_STAGE + 16, bright ? C_BLACK : C_DIM);
   textR(ORB_14, src, SCR_W - 10, Y_STAGE + 33, bright ? C_BLACK : (s.mode == M_TAKE ? C_RED : C_GRN));
   brackets(4, Y_STAGE + 4, SCR_W - 8, H_STAGE - 8, 10, bright ? C_BLACK : C_DIM);
 
   if (s.conflict) {
     fillRect(0, Y_STAGE + H_STAGE - 20, SCR_W, 20, C_RED);
-    textC(STM_12, "W10 IS STILL SENDING: hold its BOOT 1 s", SCR_W / 2, Y_STAGE + H_STAGE - 6, C_BLACK);
+    textC(STM_12, "ANOTHER CONDUCTOR IS STILL ON AIR", SCR_W / 2, Y_STAGE + H_STAGE - 6, C_BLACK);
   }
 }
 
@@ -136,7 +137,7 @@ static void drawStats(const UiState& s) {
     } else {
       text(STM_12, s.radioOk ? "BRIDGE OK  //  LoRa radio OK" : "BRIDGE OK  //  LoRa radio FAILED", 8, Y_STATS + 15,
            s.radioOk ? C_GRN : C_RED);
-      text(STM_12, "On the W10: hold BOOT 1 s for LORA TX", 8, Y_STATS + 30, C_AMB);
+      text(STM_12, "Start a conductor: W10 or StickS3 ON AIR", 8, Y_STATS + 30, C_AMB);
     }
     return;
   }
@@ -180,7 +181,7 @@ static void drawButtons(const UiState& s) {
       case B_LEFT:  tri(cx, by - 4, 8, true, fg); textC(STM_12, "10ms", cx, by + 19, fg); break;
       case B_RIGHT: tri(cx, by - 4, 8, false, fg); textC(STM_12, "10ms", cx, by + 19, fg); break;
       case B_TAKE:
-        if (takeOn) { textC(STM_12, "RELEASE", cx, by - 2, fg); textC(STM_12, "to W10", cx, by + 13, down ? C_BLACK : C_DIM); }
+        if (takeOn) { textC(STM_12, "RELEASE", cx, by - 2, fg); textC(STM_12, "hand back", cx, by + 13, down ? C_BLACK : C_DIM); }
         else { textC(ORB_14, "TAKE", cx, by + 1, fg); textC(STM_12, "over", cx, by + 17, down ? C_BLACK : C_DIM); }
         break;
     }

@@ -8,7 +8,7 @@
 //
 // Touch: TAP = tap tempo (first tap = downbeat; tapping while following takes over).
 //        -/+ = 0.1 BPM, hold for 1 BPM steps. Arrows = nudge the beat 10 ms earlier / later.
-//        TAKE / RELEASE = take the beat from the W10, or hand it back.
+//        TAKE / RELEASE = take the beat from the conductor, or hand it back.
 //        Hold the header 2 s = rotate 180 deg (remembered). Touch the splash at boot = calibrate touch.
 //
 // Built by Anubis Darkwatch with Claude. MIT license.
@@ -192,6 +192,7 @@ struct Core {
   uint32_t rx = 0, lost = 0, fires = 0, acks = 0, lastFireMs = 0;
   int rssi = 0; float snr = 0; int nudgeMs = 0;
   uint32_t bridgeMs = 0, conflictUntil = 0; bool radioOk = false, bridgeSeen = false;
+  bool viaBooth = false;             // the beat comes from a booth controller (StickS3, Dial, Tab5...) not a LoRa conductor
   uint32_t flashSeq = 0, flashMs = 0; bool flashDown = false;
   int pressed = -1; bool flipReq = false;
   uint32_t tapTimes[5]; int tapCount = 0;
@@ -253,7 +254,11 @@ void handleFrame(const LinkFrame& f, uint32_t now) {
   if (f.type != LF_RELAY) return;
   core.radioOk = true;
   if (core.gotAny) { uint8_t gap = f.seq - core.lastSeq; if (gap > 1 && gap < 64) core.lost += gap - 1; }
-  core.lastSeq = f.seq; core.rx++; core.rssi = f.rssi; core.snr = f.snr4 / 4.0f;
+  bool echo = f.flags & LINK_FLAG_ECHO;                // a booth controller mirroring the bridge's confirmation
+  if (core.gotAny && f.seq == core.lastSeq && now - core.lastRxMs < 250) return;   // same beat twice
+  core.lastSeq = f.seq; core.rx++;
+  if (!echo) { core.rssi = f.rssi; core.snr = f.snr4 / 4.0f; }
+  core.viaBooth = echo;
   if (core.mode == M_TAKE) { core.conflictUntil = now + 1500; return; }   // someone else is transmitting
   core.gotAny = true; core.lastRxMs = now;
   core.bpm = f.bpm10 / 10.0f; core.beatPos = f.beat & 3; core.hue = f.hue;
@@ -347,7 +352,7 @@ void snapshot(Snap& n, uint32_t now) {
   else if (now - core.lastRxMs < FLYWHEEL_MS) s.link = LS_HOLD;
   else s.link = LS_WAIT;
   s.bpm = core.bpm; s.beatPos = core.beatPos; s.hue = core.hue;
-  s.rssi = core.rssi; s.snr = core.snr; s.rx = core.rx; s.lost = core.lost;
+  s.rssi = core.rssi; s.snr = core.snr; s.rx = core.rx; s.lost = core.lost; s.viaBooth = core.viaBooth;
   s.sent = core.acks;
   uint32_t pend = (core.fires > core.acks && now - core.lastFireMs < 80) ? 1 : 0;
   s.fail = core.fires - core.acks - pend;
@@ -465,7 +470,7 @@ void loop() {
   s.flash = 0;
   if (animating) { int dt = now - animStart; s.flash = dt >= 150 ? 0 : 1.0f - dt / 150.0f; }
 
-  bool full = first || s.link != last.link || s.mode != last.mode || s.bridgeOk != last.bridgeOk ||
+  bool full = first || s.link != last.link || s.mode != last.mode || s.bridgeOk != last.bridgeOk || s.viaBooth != last.viaBooth ||
               ((s.link == LS_WAIT) && s.radioOk != last.radioOk);
   if (full) {
     drawAll(s); first = false; lastStats = now;
