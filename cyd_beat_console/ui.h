@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include "gfx.h"
 
-#define FW_VERSION "v1.0.4"
+#define FW_VERSION "v1.0.5"
 
 enum Mode : uint8_t { M_FOLLOW, M_TAKE };
 enum LinkState : uint8_t { LS_WAIT, LS_LIVE, LS_HOLD, LS_TAKE };

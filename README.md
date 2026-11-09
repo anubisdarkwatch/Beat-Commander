@@ -46,7 +46,7 @@ Every board in the system has a ready-made `.bin`:
 | Meshnology W10 | Conductor (mic, LoRa TX) | [`firmware/W10-Beat-Conductor-v1.0.bin`](firmware/W10-Beat-Conductor-v1.0.bin) |
 | Heltec WiFi LoRa 32 V3 | Follower (flashes on the beat) | [`firmware/Beat-Follower-HeltecV3-v1.0.bin`](firmware/Beat-Follower-HeltecV3-v1.0.bin) |
 | Heltec WiFi LoRa 32 V3 | Bridge for the booth console | [`firmware/Beat-Bridge-HeltecV3-v1.0.bin`](firmware/Beat-Bridge-HeltecV3-v1.0.bin) |
-| CYD (ESP32-2432S028R) | Booth console | [`firmware/CYD-Beat-Console-v1.0.4.bin`](firmware/CYD-Beat-Console-v1.0.4.bin) |
+| CYD (ESP32-2432S028R) | Booth console | [`firmware/CYD-Beat-Console-v1.0.5.bin`](firmware/CYD-Beat-Console-v1.0.5.bin) |
 | M5Stack M5Dial | Handheld takeover controller | [`firmware/M5Dial-Beat-Dial-v1.0.bin`](firmware/M5Dial-Beat-Dial-v1.0.bin) |
 | M5Stack StickS3 | Pocket conductor (mic) / beat badge | [`firmware/StickS3-Pocket-Conductor-v1.0.5.bin`](firmware/StickS3-Pocket-Conductor-v1.0.5.bin) |
 | Seeed XIAO ESP32-S3 | Beat Gateway (USB MIDI clock + feed for Beat Hub) | [`firmware/Beat-Gateway-XIAO-S3-v1.3.bin`](firmware/Beat-Gateway-XIAO-S3-v1.3.bin) |
@@ -144,7 +144,7 @@ screen: a V3 with a dead OLED is perfect for this. No soldering anywhere, just t
 ### Flash it (browser, no installs)
 
 Use the steps in [Flash it from the browser](#flash-it-from-the-browser-no-arduino-ide) with
-`CYD-Beat-Console-v1.0.4.bin` on the CYD and `Beat-Bridge-HeltecV3-v1.0.bin` on the Heltec V3.
+`CYD-Beat-Console-v1.0.5.bin` on the CYD and `Beat-Bridge-HeltecV3-v1.0.bin` on the Heltec V3.
 
 **First boot of the CYD:**
 1. **Display check.** CYD batches use different panels, so the image can come out mirrored or with red and
