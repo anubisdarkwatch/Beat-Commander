@@ -1,12 +1,25 @@
 // Beat Commander: W10 conductor - mic beat detection -> screen + RGB LED light show + LoRa beat broadcast
 // Meshnology W10 (ESP32-S3, ES8311 mic, ST7789 240x240, WS2812 on GPIO48, E22/SX1262)
 // BOOT tap = tap tempo (taps override the mic for 15 s). BOOT hold 1 s = LoRa beat broadcast on/off.
+// v1.1 RELAY: the W10 also listens on ESP-NOW (channel 1). When a booth controller sends beats (a StickS3 in
+// CONDUCT + ON AIR next to the speaker, a Dial, CYD, Cardputer, Tab5...), the W10 transmits them on LoRa for every
+// follower, confirms them like the Heltec bridge does, and its own mic steps aside so the two never collide.
+// When those beats stop for 2 s, it picks the beat up from its own mic on the same grid (if LORA TX is on).
+// Relaying works with LORA TX off too (then the W10 is a pure relay). If a Heltec bridge is also running, the W10
+// leaves the relaying to it and only steps aside.
 #include <Arduino.h>
 #include <SPI.h>
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include "ESP_I2S.h"
 #include <initializer_list>
+#include <WiFi.h>
+#include <esp_now.h>
+#include <esp_wifi.h>
+#include "link.h"
+
+#define FW_VERSION "1.1"
+#define RELAY_HOLD_MS 2000      // booth beats this recent = relay mode (own mic steps aside)
 
 // ---------------- Pins (Meshnology W10 pin table) ----------------
 #define I2C_SDA 8
@@ -27,7 +40,6 @@
 // ---------------- Beat link (portable to other LoRa boards) ----------------
 #define LINK_FREQ_HZ 916000000UL   // away from Meshtastic default and US LoRaWAN channels
 #define LINK_POWER_DBM 10
-struct __attribute__((packed)) BeatPacket { uint8_t m0, m1; uint8_t seq; uint16_t bpm10; uint8_t beat; uint8_t hue; };
 
 SPISettings lcdSPI(40000000, MSBFIRST, SPI_MODE0);
 SPISettings loraSPI(8000000, MSBFIRST, SPI_MODE0);
@@ -72,13 +84,12 @@ bool loraInit() {
   cmd({0x8E, (uint8_t)LINK_POWER_DBM, 0x04}); waitBusy(); // TX power, 200 us ramp
   cmd({0x8B, 0x07, 0x06, 0x01, 0x00}); waitBusy();     // SF7, BW500, CR4/5 (~10 ms airtime)
   cmd({0x8F, 0x00, 0x00}); waitBusy();                 // buffer base
+  cmd({0x08, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}); waitBusy();  // IRQ mask: TxDone (polled, for relay ACKs)
   cmd({0x80, 0x01}); waitBusy();                       // standby XOSC
   Serial.println("LoRa beat link ready (916.0 MHz, SF7/BW500, 10 dBm)");
   return true;
 }
-void sendBeat(float bpm, int beat, uint8_t hue) {
-  if (!loraOk || !txOn) return;
-  BeatPacket p = {'B', 'T', txSeq++, (uint16_t)(bpm * 10), (uint8_t)beat, hue};
+void loraSend(const BeatPacket& p) {
   cmd({0x80, 0x01});
   uint8_t buf[2 + sizeof(p)]; buf[0] = 0x0E; buf[1] = 0x00; memcpy(buf + 2, &p, sizeof(p));
   loraXfer(buf, sizeof(buf));                          // write payload
@@ -86,6 +97,42 @@ void sendBeat(float bpm, int beat, uint8_t hue) {
   cmd({0x02, 0xFF, 0xFF});                             // clear IRQs
   cmd({0x83, 0x00, 0x00, 0x00});                       // TX (no timeout); ~10 ms, then auto standby
 }
+void sendBeat(float bpm, int beat, uint8_t hue) {
+  if (!loraOk || !txOn) return;
+  BeatPacket p = {'B', 'T', txSeq++, (uint16_t)(bpm * 10), (uint8_t)beat, hue};
+  loraSend(p);
+}
+bool loraTxDone() {                                     // poll the IRQ register (the W10 has no DIO1 line to the ESP32)
+  uint8_t t[4] = {0x12, 0, 0, 0}, r[4]; waitBusy(); loraXfer(t, 4, r);
+  if (!(r[3] & 0x01)) return false;
+  cmd({0x02, 0xFF, 0xFF});
+  return true;
+}
+
+// ================= ESP-NOW relay =================
+const uint8_t BCAST[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+QueueHandle_t linkQ;
+bool espnowUp = false;
+bool espnowInit() {
+  WiFi.mode(WIFI_STA); WiFi.disconnect();
+  esp_wifi_set_channel(LINK_ESPNOW_CH, WIFI_SECOND_CHAN_NONE);
+  if (esp_now_init() != ESP_OK) return false;
+  esp_wifi_set_ps(WIFI_PS_NONE);
+  esp_now_peer_info_t peer = {};
+  memset(peer.peer_addr, 0xFF, 6); peer.channel = LINK_ESPNOW_CH; peer.encrypt = false;
+  esp_now_add_peer(&peer);
+  esp_now_register_recv_cb([](const esp_now_recv_info_t*, const uint8_t* d, int len) {
+    if (!linkValid(d, len)) return;
+    LinkFrame f; memcpy(&f, d, sizeof(f));
+    if (f.type == LF_FIRE || f.type == LF_HELLO) xQueueSend(linkQ, &f, 0);
+  });
+  return true;
+}
+void espnowSend(const LinkFrame& f) { if (espnowUp) esp_now_send(BCAST, (const uint8_t*)&f, sizeof(f)); }
+uint32_t relayMs = 0, otherBridgeMs = 0, relayed = 0, relayTxAt = 0;
+bool relayPending = false; BeatPacket relayPkt;
+bool relaying(uint32_t now) { return relayMs && now - relayMs < RELAY_HOLD_MS; }
+bool weRelay(uint32_t now) { return loraOk && !(otherBridgeMs && now - otherBridgeMs < 3000); }
 
 // ================= ST7789 =================
 void lcdBegin() { SPI.beginTransaction(lcdSPI); digitalWrite(LCD_CS, LOW); }
@@ -268,10 +315,17 @@ void ledShow(float v, uint8_t h) {
 void drawTop() {
   top.fillScreen(C_PANEL); top.setTextSize(1);
   top.setTextColor(C_CYAN); top.setCursor(4, 4); top.print("W10 // BEAT CONDUCTOR");
-  bool manual = millis() < tapLock;
-  top.setTextColor(manual ? C_AMBER : C_GREEN); top.setCursor(4, 16); top.print(manual ? "TAP" : "MIC");
-  top.setTextColor(C_TEXT); top.setCursor(30, 16); top.print(manual ? "manual tempo" : "auto beat");
-  if (txOn) { top.fillRoundRect(178, 13, 58, 13, 3, C_RED); top.setTextColor(rgb(255, 255, 255)); top.setCursor(184, 16); top.print("LORA TX"); }
+  uint32_t now = millis();
+  bool manual = now < tapLock;
+  if (relaying(now)) {
+    top.setTextColor(C_AMBER); top.setCursor(4, 16); top.print("REMOTE");
+    top.setTextColor(C_TEXT); top.setCursor(44, 16); top.print("booth beats");
+  } else {
+    top.setTextColor(manual ? C_AMBER : C_GREEN); top.setCursor(4, 16); top.print(manual ? "TAP" : "MIC");
+    top.setTextColor(C_TEXT); top.setCursor(30, 16); top.print(manual ? "manual tempo" : "auto beat");
+  }
+  if (relaying(now) && weRelay(now)) { top.fillRoundRect(178, 13, 58, 13, 3, C_AMBER); top.setTextColor(rgb(0, 0, 0)); top.setCursor(190, 16); top.print("RELAY"); }
+  else if (txOn) { top.fillRoundRect(178, 13, 58, 13, 3, C_RED); top.setTextColor(rgb(255, 255, 255)); top.setCursor(184, 16); top.print("LORA TX"); }
   else { top.drawRoundRect(178, 13, 58, 13, 3, C_GRID); top.setTextColor(C_GRID); top.setCursor(184, 16); top.print("LORA off"); }
   pushCanvas(top, 0, 30);
 }
@@ -340,6 +394,9 @@ void setup() {
   loraOk = loraInit();
   micOk = micInit();
   if (micOk) xTaskCreatePinnedToCore(audioTask, "audio", 8192, nullptr, 3, nullptr, 0);
+  linkQ = xQueueCreate(8, sizeof(LinkFrame));
+  espnowUp = espnowInit();
+  Serial.printf("W10 Beat Conductor v%s | ESP-NOW relay %s\n", FW_VERSION, espnowUp ? "listening (ch 1)" : "FAILED");
   nextBeat = millis() + 500;
   Serial.println("BOOT tap = tap tempo, BOOT hold 1s = LoRa beat broadcast on/off");
 }
@@ -359,8 +416,42 @@ void loop() {
   }
   btnWas = b;
 
+  // --- relay: beats from a booth controller over ESP-NOW go out on LoRa ---
+  LinkFrame lf;
+  while (xQueueReceive(linkQ, &lf, 0) == pdTRUE) {
+    if (lf.type == LF_HELLO) { otherBridgeMs = now; continue; }            // a Heltec bridge does the relaying
+    if (lf.bpm10 < 300 || lf.bpm10 > 3000) continue;
+    if (!relaying(now)) Serial.println("booth beats: relay mode, own mic steps aside");
+    relayMs = now;
+    if (weRelay(now) && !relayPending) {
+      relayPkt = {'B', 'T', txSeq++, lf.bpm10, (uint8_t)(lf.beat & 3), lf.hue};
+      loraSend(relayPkt); relayPending = true; relayTxAt = now;
+    }
+    // show it, and keep our own clock on the booth's grid so taking over again is seamless
+    bpm = lf.bpm10 / 10.0f; beatNum = lf.beat & 3; hue = lf.hue; flash = 1.0f;
+    tapLock = now + RELAY_HOLD_MS;                                       // the mic tempo estimate pauses too
+    nextBeat = now + (uint32_t)(60000.0f / bpm);
+  }
+  if (relayPending) {
+    if (loraTxDone()) {
+      relayPending = false; relayed++;
+      LinkFrame a = linkFrame(LF_ACK);                                    // "that beat went out", as the bridge says it
+      a.seq = relayPkt.seq; a.bpm10 = relayPkt.bpm10; a.beat = relayPkt.beat; a.hue = relayPkt.hue; a.count = relayed;
+      espnowSend(a);
+    } else if (now - relayTxAt > 100) { relayPending = false; cmd({0x80, 0x01}); }
+  }
+  static uint32_t lastHello = 0;
+  if (espnowUp && weRelay(now) && now - lastHello >= 1000) {              // tell controllers a bridge is here
+    lastHello = now;
+    LinkFrame h = linkFrame(LF_HELLO); h.flags = 1; h.count = relayed;
+    espnowSend(h);
+  }
+  static bool wasRelaying = false;
+  if (wasRelaying && !relaying(now)) Serial.printf("booth beats stopped: %s\n", txOn ? "own mic takes over" : "LORA TX off, quiet");
+  wasRelaying = relaying(now);
+
   // --- apply phase corrections from the audio task ---
-  { int32_t adj = phaseAdj; if (adj) { phaseAdj = 0; nextBeat += adj; } }
+  { int32_t adj = phaseAdj; if (adj) { phaseAdj = 0; if (!relaying(now)) nextBeat += adj; } }
 
   // --- beat clock ---
   if ((int32_t)(now - nextBeat) >= 0) {
@@ -368,7 +459,7 @@ void loop() {
     int bi = ((beatNum % 4) + 4) % 4;
     if (bi == 0) hue += 40;                            // new color every bar
     flash = 1.0f;
-    sendBeat(bpm, bi, hue);
+    if (!relaying(now)) sendBeat(bpm, bi, hue);       // relay mode: the booth's beats go out instead
     float period = 60000.0f / bpm;
     nextBeat += (uint32_t)period;
     if ((int32_t)(now - nextBeat) > 0) nextBeat = now + (uint32_t)period; // catch up after stalls
@@ -387,7 +478,7 @@ void loop() {
   if (now - lastLog > 1000) {
     lastLog = now;
     Serial.printf("bpm %.1f  est %.1f  conf %.2f  onsets/s %d  level %.3f  mode %s  lora %s\n",
-      bpm, bpmEst, conf, onsetCount, level, now < tapLock ? "TAP" : "MIC", txOn ? "TX" : "off");
+      bpm, bpmEst, conf, onsetCount, level, relaying(now) ? "REMOTE" : now < tapLock ? "TAP" : "MIC", txOn ? "TX" : "off");
     onsetCount = 0;
   }
   delay(1);

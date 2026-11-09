@@ -9,7 +9,7 @@ It started on the [Meshnology W10 LoRa AIoT Dev Kit](https://meshnology.com/prod
 BPM, flashes its 1.54" screen and RGB LED on every beat, and broadcasts each beat over LoRa.
 
 **The crew**
-- **Conductor:** Meshnology W10 (mic + LoRa), or the M5StickS3 Pocket Conductor
+- **Conductor:** Meshnology W10 (mic + LoRa), or the M5StickS3 Pocket Conductor (at the mic, relayed by the W10)
 - **Followers:** Heltec V3, the Piglet beat badge (and the XIAO kits, coming)
 - **Bridge:** Heltec V3, linking LoRa and ESP-NOW for the booth gear
 - **Booth controllers:** CYD console, M5Dial, M5Stack Tab5 Command Center, Cardputer ADV terminal, LilyGo T-Deck Plus Beat Deck (its own LoRa radio)
@@ -44,7 +44,7 @@ Every board in the system has a ready-made `.bin`:
 
 | Board | Role | File |
 |---|---|---|
-| Meshnology W10 | Conductor (mic, LoRa TX) | [`firmware/W10-Beat-Conductor-v1.0.bin`](firmware/W10-Beat-Conductor-v1.0.bin) |
+| Meshnology W10 | Conductor (mic, LoRa TX) | [`firmware/W10-Beat-Conductor-v1.1.bin`](firmware/W10-Beat-Conductor-v1.1.bin) |
 | Heltec WiFi LoRa 32 V3 | Follower (flashes on the beat) | [`firmware/Beat-Follower-HeltecV3-v1.1.bin`](firmware/Beat-Follower-HeltecV3-v1.1.bin) |
 | Heltec WiFi LoRa 32 V3 | Bridge for the booth console | [`firmware/Beat-Bridge-HeltecV3-v1.1.bin`](firmware/Beat-Bridge-HeltecV3-v1.1.bin) |
 | CYD (ESP32-2432S028R) | Booth console | [`firmware/CYD-Beat-Console-v1.0.5.bin`](firmware/CYD-Beat-Console-v1.0.5.bin) |
@@ -75,9 +75,33 @@ BOOT once it's running.
 - **Screen**: full-panel color flash on each beat, big BPM readout, 1-2-3-4 bar counter (downbeat in amber), color shift every bar, live onset scope + level meter
 - **RGB LED** (WS2812 on GPIO48) flashes with the beat
 - **LoRa beat link** (off by default): 7-byte packet per beat on 916.0 MHz, SF7 / BW500, 10 dBm
+- **Relay** (v1.1): put a StickS3 (or any booth controller) next to the speaker and the W10 transmits its beats on
+  LoRa for every follower. See [Relay: StickS3 at the mic, W10 on the air](#relay-sticks3-at-the-mic-w10-on-the-air)
 
 Tested against synthetic tracks from 90 to 174 BPM (kick only, kick + off-beat bass + hats, noisy mixes):
 tempo within 0.5 BPM, flashes within ~10 ms of the kick. On a real 128 BPM kick track it reads 127.4–128.1.
+
+## Relay: StickS3 at the mic, W10 on the air
+
+Can't get the W10 near the speaker? Put the [StickS3 Pocket Conductor](#pocket-conductor-m5sticks3) there instead
+(CONDUCT, **ON AIR**). Its beats reach the W10 over ESP-NOW, and the W10 transmits them on LoRa to every follower:
+
+```
+speaker ─► StickS3 (mic) ──ESP-NOW──► W10 ──LoRa 916.0 MHz──► followers, badge, T-Deck...
+```
+
+- No Heltec bridge needed: the W10 does the bridge's job (it confirms each beat, so the StickS3, CYD and Dial
+  show them as booth beats, and it sends the bridge heartbeat).
+- While booth beats are coming in, the W10's own mic steps aside, so the two never collide. Its screen shows
+  **REMOTE** and an amber **RELAY** pill, and flashes on the StickS3's beats.
+- **Failover:** when the StickS3's beats stop for 2 s (out of range, battery, pocket), the W10 carries on from its own
+  mic on the same beat grid, if its **LORA TX** is on. With LORA TX off it's a pure relay and goes quiet instead.
+- Any booth controller works the same way: the M5Dial, CYD console, Cardputer, Tab5 or T-Dongle gateway.
+- If a Heltec bridge is also running, the W10 leaves the relaying to it (it hears the bridge's heartbeat) and only
+  steps aside, so nothing is transmitted twice.
+
+The ESP-NOW hop adds about 1-2 ms. Keep the StickS3 within Wi-Fi range of the W10 (a room or a small venue;
+avoid putting it inside a metal rack).
 
 ## Controls
 
@@ -281,8 +305,10 @@ conductor's colour.
 | Side button (KEY2), tap | Mic gain: club / loud room / quiet room / max (remembered) | |
 | Side button, hold 1 s | Switch to FOLLOW | Switch to CONDUCT |
 
-It starts **LOCAL** (beat on screen only). Turn the W10's **LORA TX** off before going ON AIR. If the bridge still
-hears the W10, or another controller is sending, the pill turns to **CLASH**. The panel at the bottom shows the onset
+It starts **LOCAL** (beat on screen only). ON AIR goes out through the Heltec bridge, or through the W10 itself
+([relay](#relay-sticks3-at-the-mic-w10-on-the-air), W10 v1.1+, which also steps its own mic aside). With an older W10
+firmware, turn its **LORA TX** off before going ON AIR. If the bridge still hears another conductor, the pill turns
+to **CLASH**. The panel at the bottom shows the onset
 scope (bright ticks = detected hits) and the mic level. If the level bar sits near the end, lower the gain. If it barely
 moves, raise it.
 
