@@ -32,7 +32,7 @@
 #include "link.h"
 #include "viz.h"
 
-#define FW_VERSION  "1.1"
+#define FW_VERSION  "1.1.1"
 #define FLYWHEEL_MS 4000
 
 // ================= display =================
@@ -244,6 +244,8 @@ void setup() {
   if (!cv.createSprite(tft.width(), tft.height())) Serial.println("# sprite alloc failed");
   rxQ = xQueueCreate(16, sizeof(LinkFrame));
   radioUp = espnowInit();
+  Serial.printf("# panel setting %u (BGR %u, mirror %u, invert %u), BOOT reads %s\n", panelMode, panelMode & 1, (panelMode >> 1) & 1,
+                (panelMode >> 2) & 1, digitalRead(0) ? "released" : "PRESSED");
   Serial.printf("# Beat Visualizer v%s (%s) | ESP-NOW %s\n", FW_VERSION,
 #if defined(BOARD_CYD32)
                 "CYD 3.2 IPS",
@@ -256,6 +258,16 @@ void setup() {
   nextBeat = millis() + 500;
 }
 
+// BOOT only counts once it has read "released" for half a second after power-up, so a button (or a board) that
+// holds GPIO0 low can't keep cycling the panel setting and restarting (v1.1.1).
+bool bootReady(uint32_t now) {
+  static bool armed = false; static uint32_t highSince = 0;
+  if (armed) return true;
+  if (digitalRead(0) == HIGH) { if (!highSince) highSince = now | 1; else if (now - highSince > 500) armed = true; }
+  else highSince = 0;
+  return armed;
+}
+
 void nextMode(uint32_t now) { vs.mode = (vs.mode + 1) % V_COUNT; vs.labelUntil = now + 1500; prefs.putUChar("mode", vs.mode); }
 void toggleAuto(uint32_t now) { vs.autoMode = !vs.autoMode; vs.labelUntil = now + 1500; prefs.putBool("auto", vs.autoMode); }
 
@@ -264,9 +276,9 @@ void loop() {
   linkStep(now);
 #ifdef BOARD_CYD
 #ifdef BOARD_CYD32
-  int t = pollTouch(now), b = pollBtn(bBoot, 2000);
+  int t = pollTouch(now), b = bootReady(now) ? pollBtn(bBoot, 2000) : 0;
 #else
-  int t = pollBtn(bTouch, 100000), b = pollBtn(bBoot, 2000);
+  int t = pollBtn(bTouch, 100000), b = bootReady(now) ? pollBtn(bBoot, 2000) : 0;
 #endif
   if (t == 1) nextMode(now);
   if (b == 1) toggleAuto(now);
