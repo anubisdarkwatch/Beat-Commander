@@ -39,13 +39,15 @@ const uint16_t C_BG = c565(5, 5, 5), C_CARD = c565(14, 11, 6), C_LINE = c565(48,
                C_AMB_D = c565(130, 104, 44), C_GRN = c565(57, 255, 20), C_RED = c565(255, 59, 59), C_TXT = c565(255, 214, 130),
                C_PURP = c565(170, 110, 255), C_FAINT = c565(70, 58, 30);
 
-lgfx::VLWfont fMono, fMonoL, fType;
-lgfx::PointerWrapper wMono, wMonoL, wType;
+lgfx::VLWfont fMono, fMonoL, fType, fTitle, fJack;
+lgfx::PointerWrapper wMono, wMonoL, wType, wTitle, wJack;
 void initFonts() {
   vizInitFonts();                             // vfBig (BPM), vfDec, vfLbl (header, pills)
   wMono.set(F_TMONO, sizeof(F_TMONO)); fMono.loadFont(&wMono);
   wMonoL.set(F_TMONOL, sizeof(F_TMONOL)); fMonoL.loadFont(&wMonoL);
   wType.set(F_TTYPE, sizeof(F_TTYPE)); fType.loadFont(&wType);
+  wTitle.set(F_TTITLE, sizeof(F_TTITLE)); fTitle.loadFont(&wTitle);
+  wJack.set(F_TJACK, sizeof(F_TJACK)); fJack.loadFont(&wJack);
 }
 
 void text(LGFX_Sprite& s, const lgfx::IFont* f, const char* str, int x, int y, uint16_t col, textdatum_t d = top_left) {
@@ -171,5 +173,46 @@ void draw(LGFX_Sprite& s, const View& v, uint32_t now) {
                            "ball left/right nudge 10 ms", "V visuals  M mode  A auto",
                            "G bridge role   D display fix", "touch: swap page    H close"};
     for (int i = 0; i < 8; i++) text(s, &fMono, lines[i], 18, 46 + i * 20, i == 7 ? C_AMB_D : C_TXT, middle_left);
+  }
+}
+
+// ------------------------------------------------------------------ splash
+// t = ms since the splash started. Rings pulse out of the jackal at 120 BPM, the title fades in, the green line
+// fills over SPLASH_MS and the start-up checks tick in underneath (state -1 = checking, 0 = failed, 1 = OK).
+constexpr uint32_t SPLASH_MS = 4000;
+static uint16_t lerp565(uint16_t a, uint16_t b, int k) {      // k 0..255
+  int ar = a >> 11, ag = (a >> 5) & 63, ab = a & 31, br = b >> 11, bg = (b >> 5) & 63, bb = b & 31;
+  return ((ar + (br - ar) * k / 255) << 11) | ((ag + (bg - ag) * k / 255) << 5) | (ab + (bb - ab) * k / 255);
+}
+void drawSplash(LGFX_Sprite& s, uint32_t t, const char* const* names, const int8_t* state, int n, const char* ver) {
+  s.fillScreen(0);
+  const int cx = SW / 2, cy = 58;
+  // rings: one per beat, expanding and fading
+  for (int i = 0; i < 4; i++) {
+    int age = (int)(t % 500) + i * 500;
+    if (age > 2000 || (int)t < age) continue;
+    int r = 30 + age * 160 / 2000, k = 255 - age * 255 / 2000;
+    s.drawCircle(cx, cy, r, lerp565(0, C_AMB, k * 3 / 5));
+    s.drawCircle(cx, cy, r + 1, lerp565(0, C_AMB, k / 4));
+  }
+  // jackal: fades in, then glows on every beat
+  int in = t < 700 ? (int)t * 255 / 700 : 255;
+  int beat = (int)(t % 500), glow = beat < 160 ? 255 - beat * 255 / 160 : 0;
+  text(s, &fJack, "\xEE\x80\x80", cx + 4, cy + 46 - 2, lerp565(0, lerp565(C_AMB, 0xFFFF, glow / 3), in), baseline_center);
+  // title
+  int ti = t < 400 ? 0 : t < 1200 ? ((int)t - 400) * 255 / 800 : 255;
+  text(s, &fTitle, "BEAT COMMANDER", cx, 140, lerp565(0, C_AMB, ti), middle_center);
+  char b[32]; snprintf(b, sizeof(b), "BEAT DECK  v%s", ver);
+  text(s, &fMono, b, cx, 165, lerp565(0, C_AMB_D, ti), middle_center);
+  // progress line
+  int w = (int)((t > SPLASH_MS ? SPLASH_MS : t) * 260 / SPLASH_MS);
+  s.drawFastHLine(cx - 130, 182, 260, C_LINE);
+  s.fillRect(cx - 130, 181, w, 3, C_GRN);
+  // start-up checks, two columns
+  for (int i = 0; i < n; i++) {
+    int x = i % 2 ? cx + 10 : 12, y = 204 + (i / 2) * 20;
+    text(s, &fMono, names[i], x, y, C_AMB_D, middle_left);
+    const char* st = state[i] < 0 ? (t / 200 % 3 == 0 ? ".  " : t / 200 % 3 == 1 ? ".. " : "...") : state[i] ? "OK" : "--";
+    text(s, &fMono, st, i % 2 ? SW - 12 : cx - 10, y, state[i] < 0 ? C_FAINT : state[i] ? C_GRN : C_RED, middle_right);
   }
 }

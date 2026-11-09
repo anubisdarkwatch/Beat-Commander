@@ -29,7 +29,7 @@
 #include "link.h"
 #include "ui.h"
 
-#define FW_VERSION     "1.0"
+#define FW_VERSION     "1.1"
 #define LINK_FREQ_HZ   916000000UL
 #define LINK_POWER_DBM 10          // same as the W10 conductor and the Heltec bridge
 #define LINK_AIR_MS    11          // SF7 / BW500 airtime of a beat packet: flash this long after sending
@@ -561,23 +561,29 @@ void setup() {
   initFonts();
   cv.setColorDepth(16);
   if (!cv.createSprite(SW, SH)) { cv.setColorDepth(8); cv.createSprite(SW, SH); }   // 8-bit fits anywhere
-  cv.fillScreen(C_BG);
-  cv.setFont(&vfLbl); cv.setTextDatum(middle_center); cv.setTextColor(C_AMB);
-  cv.drawString("BEAT COMMANDER", SW / 2, SH / 2 - 12);
-  cv.setFont(&fMono); cv.setTextColor(C_AMB_D); cv.drawString("Beat Deck v" FW_VERSION, SW / 2, SH / 2 + 14);
-  pushFrame();
 
+  // splash: animated for SPLASH_MS while the radios and the keyboard start up
+  static const char* const names[] = {"LORA 916.0", "ESP-NOW CH1", "KEYBOARD", "TOUCH"};
+  int8_t st[4] = {-1, -1, -1, -1};
+  uint32_t t0 = millis();
+  auto splashUntil = [&](uint32_t ms) {
+    do { drawSplash(cv, millis() - t0, names, st, 4, FW_VERSION); pushFrame(); delay(15); } while (millis() - t0 < ms);
+  };
+  splashUntil(700);
   lock = xSemaphoreCreateMutex();
   rxQ = xQueueCreate(24, sizeof(LinkFrame));
   keyQ = xQueueCreate(16, sizeof(KeyEv));
-  loraUp = loraInit();
-  espnowUp = espnowInit();
+  loraUp = loraInit(); st[0] = loraUp;
+  splashUntil(1300);
+  espnowUp = espnowInit(); st[1] = espnowUp;
   core.role = prefs.getBool("role", false);
-
-  delay(400);                                          // the keyboard's own chip needs a moment after power-on
+  splashUntil(1900);                                   // the keyboard's own chip needs a moment after power-on
   Wire.begin(P_SDA, P_SCL, 400000);
-  Wire.beginTransmission(KB_ADDR); kbOk = Wire.endTransmission() == 0;
+  Wire.beginTransmission(KB_ADDR); kbOk = Wire.endTransmission() == 0; st[2] = kbOk;
+  splashUntil(2400);
   for (uint8_t a : {0x5D, 0x14}) { Wire.beginTransmission(a); if (Wire.endTransmission() == 0) { gtAddr = a; break; } }
+  st[3] = gtAddr != 0;
+  splashUntil(SPLASH_MS);
   Serial.printf("# Beat Deck v%s | LoRa %s | ESP-NOW %s | keyboard %s | touch %s | sprite %d-bit | MAC %s\n", FW_VERSION,
                 loraUp ? "OK" : "FAILED", espnowUp ? "up" : "FAILED", kbOk ? "OK" : "missing", gtAddr ? "OK" : "missing",
                 cv.getColorDepth(), WiFi.macAddress().c_str());

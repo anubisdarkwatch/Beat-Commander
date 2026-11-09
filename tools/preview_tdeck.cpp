@@ -29,6 +29,9 @@ int main() {
   v.flashMs = now - 60; v.flashDown = false; v.toast = T_TAKE; draw(cv, v, now); save("3_takeover");
   v.toast = T_NONE; v.role = true; v.relayed = 1200; v.mode = M_FOLLOW; v.link = LS_LIVE; v.viaBooth = true; draw(cv, v, now); save("4_bridge");
   v.help = true; draw(cv, v, now); save("5_help");
+  { const char* nm[] = {"LORA 916.0", "ESP-NOW CH1", "KEYBOARD", "TOUCH"}; int8_t st[] = {1, 1, 1, -1};
+    drawSplash(cv, 2600, nm, st, 4, "1.1"); save("7_splash");
+    int8_t st0[] = {-1, -1, -1, -1}; drawSplash(cv, 420, nm, st0, 4, "1.1"); save("8_splash_early"); }
   VizState z = {}; z.bpm = 126.4f; z.beatMs = now - 40; z.beatPos = 0; z.hue = 200; z.bars = 41; z.src = SRC_W10; z.mode = V_TUNNEL; z.hud = true;
   for (int i = 0; i < 30; i++) vizDraw(cv, z, now - 600 + i * 20);
   vizDraw(cv, z, now); save("6_viz");

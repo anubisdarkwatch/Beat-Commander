@@ -64,6 +64,8 @@ FONTS = [
     ("F_TMONO", STM, 16, ASCII, 0),                  # stats, hints
     ("F_TMONOL", STM, 22, ASCII, 0),                 # stat values, typed BPM label
     ("F_TTYPE", ORB9, 48, "0123456789._", 0),        # the BPM being typed
+    ("F_TTITLE", ORB9, 28, " ABCDEFGHIJKLMNOPQRSTUVWXYZ", 0),   # splash title
+    ("F_TJACK", HIE, 92, "", 92),                # splash jackal (U+E000)
 ]
 
 with open(OUT, "w") as o:
