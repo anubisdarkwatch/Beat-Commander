@@ -22,6 +22,7 @@ struct VizState {
   uint8_t mode; bool autoMode;
   uint32_t labelUntil;  // show the mode name until then
   bool hud;             // small BPM readout in the corner
+  const char* hint;     // shown instead of the mode name while a gesture is in progress
 };
 
 // ------------------------------------------------------------------ colour
@@ -224,8 +225,9 @@ void vizDraw(LGFX_Sprite& s, const VizState& v, uint32_t now) {
   }
   int W = s.width(), H = s.height();
   s.setFont(&vfLbl);
-  if ((int32_t)(v.labelUntil - now) > 0) {               // mode name after a change
-    char b[24]; snprintf(b, sizeof(b), "%s%s", VIZ_NAME[v.mode], v.autoMode ? "  AUTO" : "");
+  if (v.hint || (int32_t)(v.labelUntil - now) > 0) {    // mode name after a change, or a gesture hint
+    char b[48];
+    if (v.hint) snprintf(b, sizeof(b), "%s", v.hint); else snprintf(b, sizeof(b), "%s%s", VIZ_NAME[v.mode], v.autoMode ? "  AUTO" : "");
     int w = s.textWidth(b) + 20;
     s.fillRoundRect(W / 2 - w / 2, 6, w, 24, 12, V_BG); s.drawRoundRect(W / 2 - w / 2, 6, w, 24, 12, V_AMB);
     s.setTextDatum(middle_center); s.setTextColor(V_AMB); s.drawString(b, W / 2, 19);

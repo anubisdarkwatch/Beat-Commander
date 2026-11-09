@@ -53,9 +53,9 @@ Every board in the system has a ready-made `.bin`:
 | M5Stack Tab5 | Beat Command Center (big touch console, uses the Beat Gateway as its radio) | [`firmware/Tab5-Beat-Command-v1.0.5.bin`](firmware/Tab5-Beat-Command-v1.0.5.bin) |
 | M5Stack Cardputer ADV (or Cardputer) | Beat Commander terminal (keyboard booth controller) | [`firmware/Cardputer-Beat-Terminal-v1.0.bin`](firmware/Cardputer-Beat-Terminal-v1.0.bin) |
 | Piglet (XIAO ESP32-C5 + OLED) | Beat badge: pocket follower + coverage checker | [`firmware/Piglet-Beat-Badge-C5-v1.0.3.bin`](firmware/Piglet-Beat-Badge-C5-v1.0.3.bin) |
-| LilyGo TTGO T-Display | Beat Visualizer (6 beat-synced visual modes) | [`firmware/Beat-Visualizer-v1.1.2-ttgo.bin`](firmware/Beat-Visualizer-v1.1.2-ttgo.bin) |
-| CYD (ESP32-2432S028R) | Beat Visualizer, badge-sized 2.8" | [`firmware/Beat-Visualizer-v1.1.2-cyd.bin`](firmware/Beat-Visualizer-v1.1.2-cyd.bin) |
-| CYD 3.2" IPS (ESP32-2432S032C) | Beat Visualizer, 3.2" IPS + capacitive touch | [`firmware/Beat-Visualizer-v1.1.2-cyd32.bin`](firmware/Beat-Visualizer-v1.1.2-cyd32.bin) |
+| LilyGo TTGO T-Display | Beat Visualizer (6 beat-synced visual modes) | [`firmware/Beat-Visualizer-v1.2-ttgo.bin`](firmware/Beat-Visualizer-v1.2-ttgo.bin) |
+| CYD (ESP32-2432S028R) | Beat Visualizer, badge-sized 2.8" | [`firmware/Beat-Visualizer-v1.2-cyd.bin`](firmware/Beat-Visualizer-v1.2-cyd.bin) |
+| CYD 3.2" IPS (ESP32-2432S032C) | Beat Visualizer, 3.2" IPS + capacitive touch | [`firmware/Beat-Visualizer-v1.2-cyd32.bin`](firmware/Beat-Visualizer-v1.2-cyd32.bin) |
 
 If **Connect** fails, put the board in download mode and try again: hold **BOOT** (Heltec: **PRG**) while
 plugging in, or hold it, tap **RST**, then release. On the W10, turn the LoRa beat link on with a 1 s hold of
@@ -303,13 +303,21 @@ and every beat, the conductor's tempo and its colour drive six modes:
 so it's never dark. The colour follows the conductor's hue, which changes every bar.
 
 **TTGO T-Display** (1.14"): left button = next mode, hold = AUTO on/off; right button = brightness, hold = turn 180°.
-**CYD** (2.8", badge-sized): tap the screen = next mode; BOOT = AUTO on/off; hold BOOT 2 s = next colour/mirror
-setting (CYD panels differ: if colours or text look wrong, hold BOOT until they look right). The RGB LED on the back
-blips in the beat colour too. Settings are remembered.
-**3.2" IPS CYD** (ESP32-2432S032C / C_I, ST7789 + GT911 capacitive touch): tap = next mode, hold the screen 1.5 s = AUTO
-on/off, hold 4 s = next colour / mirror / invert setting (on the _I model GPIO0 reads "pressed" all the time, so BOOT is
-ignored there and the touch screen does its jobs). Its IPS panel gives the deepest blacks and best colour of the three.
-The side button on the _I model is the battery switch; it isn't connected to the ESP32.
+**CYD** (2.8") and **3.2" IPS CYD** (ESP32-2432S032C / C_I): the touch screen does everything, by how long you hold:
+
+| Touch | Does |
+|---|---|
+| tap | next mode |
+| hold 1.5 s | AUTO on / off |
+| hold 4 s | next colour / mirror / invert setting (CYD panels differ: repeat until it looks right) |
+| hold 10 s | **power off** (screen, LED and radio off, deep sleep). Wake it with **RST** or by re-plugging power |
+
+While you hold, the top label says what letting go will do. On the 2.8" the BOOT button also works (press = AUTO,
+hold 2 s = next setting); on the 3.2" _I model GPIO0 reads "pressed" all the time, so BOOT is ignored there.
+The RGB LED on the back blips in the beat colour. Settings are remembered.
+The 3.2"'s IPS panel (BGR, inverted, as in Sunton/Freenove's own setup) gives the deepest blacks of the three.
+Its side button is the battery switch on the charger chip and isn't connected to the ESP32. On battery, the charger
+switches itself off about 30 s after a power-off (the load is too small), and the side button turns it back on.
 
 **Flash it:** [Flash Station](https://anubisdarkwatch.github.io/flash/) (Beat Visualizer cards), or the `.bin`s above at 0x0.
 **Build from source:** esp32 by Espressif 3.x, board **ESP32 Dev Module**, partition **Huge APP**, library **LovyanGFX**.

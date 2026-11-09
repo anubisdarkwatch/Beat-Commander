@@ -8,10 +8,12 @@
 //         left button (GPIO0):   press = next mode,   hold = AUTO on/off (new mode every 8 bars)
 //         right button (GPIO35): press = brightness,  hold = turn the screen 180°
 //   CYD   ESP32-2432S028R "Cheap Yellow Display" (2.8" 320x240), the badge-sized one
-//         tap the screen = next mode,  BOOT press = AUTO on/off,  BOOT hold 2 s = next colour / mirror / invert setting
+//         tap the screen = next mode,  hold 1.5 s = AUTO,  4 s = next colour / mirror / invert setting,  10 s = power off
+//         (BOOT press = AUTO, BOOT hold 2 s = next setting, too)
 //         (CYD panels differ: if colours or text look wrong, hold BOOT until it looks right). RGB LED flashes too.
 //   CYD32 ESP32-2432S032C(-I), the 3.2" IPS CYD with capacitive touch (ST7789, GT911): tap = next mode,
-//         hold 1.5 s = AUTO on/off, hold 4 s = next colour / mirror / invert setting (BOOT works too where it reads right)
+//         hold 1.5 s = AUTO on/off, hold 4 s = next colour / mirror / invert setting, hold 10 s = power off
+//         (BOOT works too where it reads right)
 //
 // Built by Anubis Darkwatch with Claude. MIT license.
 // Arduino IDE 2.x, esp32 by Espressif 3.x, board "ESP32 Dev Module", partition "Huge APP". Library: LovyanGFX.
@@ -33,7 +35,7 @@
 #include "link.h"
 #include "viz.h"
 
-#define FW_VERSION  "1.1.2"
+#define FW_VERSION  "1.2"
 #define FLYWHEEL_MS 4000
 
 // ================= display =================
@@ -112,30 +114,38 @@ void gtInit() {
   for (uint8_t a : {0x5D, 0x14}) { Wire.beginTransmission(a); if (Wire.endTransmission() == 0) { gtAddr = a; break; } }
   Serial.printf("# GT911 touch %s\n", gtAddr ? "found" : "not found");
 }
-struct { bool down = false; uint32_t last = 0, upSince = 0, downSince = 0; uint8_t fired = 0; } tch;
-// 1 = tap (on release), 2 = held 1.5 s (AUTO), 3 = held 4 s (panel setting). The touch screen does BOOT's jobs too,
-// because on some 3.2" boards (the _I model) GPIO0 reads pressed all the time.
-int pollTouch(uint32_t now) {
-  if (now - tch.last < 25) return 0;
-  tch.last = now;
-  bool t = gtTouched();
-  if (t) {
-    tch.upSince = 0;
-    if (!tch.down) { tch.down = true; tch.downSince = now; tch.fired = 0; }
-    if (tch.fired < 1 && now - tch.downSince > 1500) { tch.fired = 1; return 2; }
-    if (tch.fired < 2 && now - tch.downSince > 4000) { tch.fired = 2; return 3; }
-  } else if (tch.down) {
-    if (!tch.upSince) tch.upSince = now;
-    else if (now - tch.upSince > 120) { tch.down = false; if (!tch.fired) return 1; }
-  }
-  return 0;
-}
+bool rawTouch() { return gtTouched(); }
 const uint8_t LED_R = 4, LED_G = 16, LED_B = 17;                    // RGB LED, active low
 #elif defined(BOARD_CYD)
-Btn bBoot = {0, false, 0, false}, bTouch = {36, false, 0, false};   // XPT2046 IRQ goes low while touched
+Btn bBoot = {0, false, 0, false};
+bool rawTouch() { return digitalRead(36) == LOW; }                   // XPT2046 IRQ goes low while touched
 const uint8_t LED_R = 4, LED_G = 16, LED_B = 17;                    // RGB LED, active low
 #else
 Btn bLeft = {0, false, 0, false}, bRight = {35, false, 0, false};
+#endif
+
+#ifdef BOARD_CYD
+// Touch screen gestures, decided by how long you hold (the 3.2" _I model's GPIO0 reads pressed all the time, so the
+// touch screen does BOOT's jobs too):  tap = next mode,  1.5 s = AUTO,  4 s = next panel setting,  10 s = power off.
+// While you hold, the label shows what letting go will do.
+struct { bool down = false; uint32_t last = 0, upSince = 0, downSince = 0; } tch;
+enum TouchAct : uint8_t { TA_NONE, TA_TAP, TA_AUTO, TA_PANEL, TA_OFF };
+uint8_t touchHint = TA_NONE;
+uint8_t holdAct(uint32_t ms) { return ms >= 10000 ? TA_OFF : ms >= 4000 ? TA_PANEL : ms >= 1500 ? TA_AUTO : TA_TAP; }
+uint8_t pollTouch(uint32_t now) {
+  if (now - tch.last < 25) return TA_NONE;
+  tch.last = now;
+  if (rawTouch()) {
+    tch.upSince = 0;
+    if (!tch.down) { tch.down = true; tch.downSince = now; }
+    touchHint = holdAct(now - tch.downSince);
+    if (touchHint == TA_OFF) { tch.down = false; touchHint = TA_NONE; return TA_OFF; }   // 10 s: act while held
+  } else if (tch.down) {
+    if (!tch.upSince) tch.upSince = now;
+    else if (now - tch.upSince > 120) { tch.down = false; uint8_t a = holdAct(tch.upSince - tch.downSince); touchHint = TA_NONE; return a; }
+  }
+  return TA_NONE;
+}
 #endif
 
 // ================= beat link =================
@@ -209,6 +219,22 @@ void applyRotation() {
 #endif
 }
 
+// "Off": screen, LED and radio off, then deep sleep. Wake it with the RST button or by re-plugging power.
+// On the 3.2" running from its battery, the battery chip also cuts power after ~30 s at this low current,
+// so the side (battery) button turns it back on.
+void powerOff() {
+  cv.fillScreen(TFT_BLACK); cv.setFont(&vfLbl); cv.setTextDatum(middle_center); cv.setTextColor(V_AMB);
+  cv.drawString("POWERING OFF", cv.width() / 2, cv.height() / 2 - 10);
+  cv.setTextColor(V_DIM); cv.drawString("RST or re-plug to wake", cv.width() / 2, cv.height() / 2 + 14);
+  cv.pushSprite(0, 0); delay(1500);
+#ifdef BOARD_CYD
+  for (uint8_t p : {LED_R, LED_G, LED_B}) { analogWrite(p, 255); }
+#endif
+  tft.setBrightness(0); tft.sleep();
+  esp_now_deinit(); esp_wifi_stop();
+  esp_deep_sleep_start();
+}
+
 SET_LOOP_TASK_STACK_SIZE(16 * 1024);   // anti-aliased glyphs are copied onto the stack while drawing
 
 void setup() {
@@ -231,7 +257,11 @@ void setup() {
 #else
   pinMode(0, INPUT_PULLUP); pinMode(35, INPUT);
 #endif
+#ifdef BOARD_CYD32
+  tft.setup(!(panelMode & 1));                             // this panel is BGR + inverted by default (Freenove/Sunton setup)
+#else
   tft.setup(panelMode & 1);
+#endif
   tft.init();
 #ifdef BOARD_CYD
   if (panelMode & 4) tft.invertDisplay(
@@ -285,15 +315,14 @@ void loop() {
   uint32_t now = millis();
   linkStep(now);
 #ifdef BOARD_CYD
-#ifdef BOARD_CYD32
-  int t = pollTouch(now), b = bootReady(now) ? pollBtn(bBoot, 2000) : 0;
-  if (t == 2) toggleAuto(now);
-  if (t == 3) b = 2;                                       // 4 s hold = next panel setting, like holding BOOT
-#else
-  int t = pollBtn(bTouch, 100000), b = bootReady(now) ? pollBtn(bBoot, 2000) : 0;
-#endif
-  if (t == 1) nextMode(now);
-  if (b == 1) toggleAuto(now);
+  uint8_t t = pollTouch(now); int b = bootReady(now) ? pollBtn(bBoot, 2000) : 0;
+  if (t == TA_TAP) nextMode(now);
+  if (t == TA_AUTO || b == 1) toggleAuto(now);
+  if (t == TA_PANEL) b = 2;
+  if (t == TA_OFF) powerOff();
+  vs.hint = touchHint == TA_AUTO ? (vs.autoMode ? "LET GO: AUTO OFF" : "LET GO: AUTO ON") : touchHint == TA_PANEL ? "LET GO: NEXT SETTING"
+          : (touchHint == TA_TAP && tch.down && now - tch.downSince > 400) ? "HOLD: 1.5s AUTO  4s SETTING  10s OFF" : nullptr;
+  if (tch.down && now - tch.downSince > 7000) vs.hint = "KEEP HOLDING TO POWER OFF";
   if (b == 2) { panelMode = (panelMode + 1) & 7; prefs.putUChar("panel", panelMode); delay(100); ESP.restart(); }
   static uint32_t ledOff = 0;                              // LED blip lasts ~80 ms
   if (now - vs.beatMs > 80 && ledOff != vs.beatId) { ledOff = vs.beatId; for (uint8_t p : {LED_R, LED_G, LED_B}) analogWrite(p, 255); }
