@@ -13,6 +13,7 @@ BPM, flashes its 1.54" screen and RGB LED on every beat, and broadcasts each bea
 - **Followers:** Heltec V3, the Piglet beat badge (and the XIAO kits, coming)
 - **Bridge:** Heltec V3, linking LoRa and ESP-NOW for the booth gear
 - **Booth controllers:** CYD console, M5Dial, M5Stack Tab5 Command Center, Cardputer ADV terminal
+- **Visualizers:** TTGO T-Display and CYD screens that turn every beat into visuals
 - **Gateway:** XIAO ESP32-S3 on USB: MIDI clock, Ableton Link, OSC, and the Tab5's radio
 
 Formerly "W10 Beat Conductor". Companion project: [W10-ISM-Waterfall](https://github.com/anubisdarkwatch/W10-ISM-Waterfall).
@@ -52,6 +53,8 @@ Every board in the system has a ready-made `.bin`:
 | M5Stack Tab5 | Beat Command Center (big touch console, uses the Beat Gateway as its radio) | [`firmware/Tab5-Beat-Command-v1.0.5.bin`](firmware/Tab5-Beat-Command-v1.0.5.bin) |
 | M5Stack Cardputer ADV (or Cardputer) | Beat Commander terminal (keyboard booth controller) | [`firmware/Cardputer-Beat-Terminal-v1.0.bin`](firmware/Cardputer-Beat-Terminal-v1.0.bin) |
 | Piglet (XIAO ESP32-C5 + OLED) | Beat badge: pocket follower + coverage checker | [`firmware/Piglet-Beat-Badge-C5-v1.0.3.bin`](firmware/Piglet-Beat-Badge-C5-v1.0.3.bin) |
+| LilyGo TTGO T-Display | Beat Visualizer (6 beat-synced visual modes) | [`firmware/Beat-Visualizer-v1.0-ttgo.bin`](firmware/Beat-Visualizer-v1.0-ttgo.bin) |
+| CYD (ESP32-2432S028R) | Beat Visualizer, badge-sized 2.8" | [`firmware/Beat-Visualizer-v1.0-cyd.bin`](firmware/Beat-Visualizer-v1.0-cyd.bin) |
 
 If **Connect** fails, put the board in download mode and try again: hold **BOOT** (Heltec: **PRG**) while
 plugging in, or hold it, tap **RST**, then release. On the W10, turn the LoRa beat link on with a 1 s hold of
@@ -278,6 +281,36 @@ starts in FOLLOW so it still syncs with the rig.
 PSRAM **Disabled**, USB CDC On Boot **Enabled**. Library **M5Unified** (installs M5GFX). The beat engine is in
 `sticks3_pocket_conductor/beat_engine.h`, copied from the W10 sketch. Screens are in `ui.h`; preview them with
 `tools/build_preview.sh <M5GFX folder> <out folder> preview_stick.cpp`.
+
+## Beat Visualizer: TTGO T-Display and CYD
+
+![Beat Visualizer modes](docs/visualizer.gif)
+
+Turns any colour screen into a beat-synced light. It follows the beat link over ESP-NOW (through the Heltec bridge),
+and every beat, the conductor's tempo and its colour drive six modes:
+
+| Mode | What it does |
+|---|---|
+| **PULSE** | rings burst out from the centre on every beat, bigger on beat 1 |
+| **TUNNEL** | rotating squares fly at you, speeding up on the beat, flipping direction every bar |
+| **BARS** | a spectrum that jumps on each beat (bass-heavy on beat 1) and falls back in time |
+| **WARP** | starfield that kicks into warp on the beat |
+| **PLASMA** | a flowing colour field that pumps on the beat |
+| **BPM** | the tempo, big, with the beat in the bar |
+
+**AUTO** (on by default) moves to the next mode every 8 bars. With no beat link it runs a 120 BPM demo,
+so it's never dark. The colour follows the conductor's hue, which changes every bar.
+
+**TTGO T-Display** (1.14"): left button = next mode, hold = AUTO on/off; right button = brightness, hold = turn 180°.
+**CYD** (2.8", badge-sized): tap the screen = next mode; BOOT = AUTO on/off; hold BOOT 2 s = next colour/mirror
+setting (CYD panels differ: if colours or text look wrong, hold BOOT until they look right). The RGB LED on the back
+blips in the beat colour too. Settings are remembered.
+
+**Flash it:** [Flash Station](https://anubisdarkwatch.github.io/flash/) (Beat Visualizer cards), or the `.bin`s above at 0x0.
+**Build from source:** esp32 by Espressif 3.x, board **ESP32 Dev Module**, partition **Huge APP**, library **LovyanGFX**.
+Pick the board with `#define BOARD_TTGO` / `BOARD_CYD` at the top of `beat_visualizer.ino`. All the visuals are in
+`viz.h`, which draws into a sprite of any size, so new screens only need a display config.
+Previews and the GIF: `tools/build_preview.sh <M5GFX folder> <out folder> preview_viz.cpp`.
 
 ## Beat badge: Piglet (XIAO ESP32-C5)
 
