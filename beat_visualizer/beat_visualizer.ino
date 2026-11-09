@@ -10,7 +10,8 @@
 //   CYD   ESP32-2432S028R "Cheap Yellow Display" (2.8" 320x240), the badge-sized one
 //         tap the screen = next mode,  BOOT press = AUTO on/off,  BOOT hold 2 s = next colour / mirror / invert setting
 //         (CYD panels differ: if colours or text look wrong, hold BOOT until it looks right). RGB LED flashes too.
-//   CYD32 ESP32-2432S032C, the 3.2" IPS CYD with capacitive touch (ST7789, GT911): same controls as the CYD
+//   CYD32 ESP32-2432S032C(-I), the 3.2" IPS CYD with capacitive touch (ST7789, GT911): tap = next mode,
+//         hold 1.5 s = AUTO on/off, hold 4 s = next colour / mirror / invert setting (BOOT works too where it reads right)
 //
 // Built by Anubis Darkwatch with Claude. MIT license.
 // Arduino IDE 2.x, esp32 by Espressif 3.x, board "ESP32 Dev Module", partition "Huge APP". Library: LovyanGFX.
@@ -32,7 +33,7 @@
 #include "link.h"
 #include "viz.h"
 
-#define FW_VERSION  "1.1.1"
+#define FW_VERSION  "1.1.2"
 #define FLYWHEEL_MS 4000
 
 // ================= display =================
@@ -111,13 +112,22 @@ void gtInit() {
   for (uint8_t a : {0x5D, 0x14}) { Wire.beginTransmission(a); if (Wire.endTransmission() == 0) { gtAddr = a; break; } }
   Serial.printf("# GT911 touch %s\n", gtAddr ? "found" : "not found");
 }
-struct { bool down = false; uint32_t last = 0, upSince = 0; } tch;
-int pollTouch(uint32_t now) {                                       // 1 = a new tap
+struct { bool down = false; uint32_t last = 0, upSince = 0, downSince = 0; uint8_t fired = 0; } tch;
+// 1 = tap (on release), 2 = held 1.5 s (AUTO), 3 = held 4 s (panel setting). The touch screen does BOOT's jobs too,
+// because on some 3.2" boards (the _I model) GPIO0 reads pressed all the time.
+int pollTouch(uint32_t now) {
   if (now - tch.last < 25) return 0;
   tch.last = now;
   bool t = gtTouched();
-  if (t) { tch.upSince = 0; if (!tch.down) { tch.down = true; return 1; } }
-  else if (tch.down) { if (!tch.upSince) tch.upSince = now; else if (now - tch.upSince > 120) tch.down = false; }
+  if (t) {
+    tch.upSince = 0;
+    if (!tch.down) { tch.down = true; tch.downSince = now; tch.fired = 0; }
+    if (tch.fired < 1 && now - tch.downSince > 1500) { tch.fired = 1; return 2; }
+    if (tch.fired < 2 && now - tch.downSince > 4000) { tch.fired = 2; return 3; }
+  } else if (tch.down) {
+    if (!tch.upSince) tch.upSince = now;
+    else if (now - tch.upSince > 120) { tch.down = false; if (!tch.fired) return 1; }
+  }
   return 0;
 }
 const uint8_t LED_R = 4, LED_G = 16, LED_B = 17;                    // RGB LED, active low
@@ -277,6 +287,8 @@ void loop() {
 #ifdef BOARD_CYD
 #ifdef BOARD_CYD32
   int t = pollTouch(now), b = bootReady(now) ? pollBtn(bBoot, 2000) : 0;
+  if (t == 2) toggleAuto(now);
+  if (t == 3) b = 2;                                       // 4 s hold = next panel setting, like holding BOOT
 #else
   int t = pollBtn(bTouch, 100000), b = bootReady(now) ? pollBtn(bBoot, 2000) : 0;
 #endif
