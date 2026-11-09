@@ -233,7 +233,7 @@ void vizDraw(LGFX_Sprite& s, const VizState& v, uint32_t now) {
     s.setTextDatum(middle_center); s.setTextColor(V_AMB); s.drawString(b, W / 2, 19);
   }
   if (v.src == SRC_DEMO) {
-    s.setTextDatum(bottom_center); s.setTextColor(V_DIM); s.drawString("DEMO - waiting for the beat link", W / 2, H - 3);
+    s.setTextDatum(bottom_center); s.setTextColor(V_DIM); s.drawString(W < 200 ? "DEMO" : "DEMO - waiting for the beat link", W / 2, H - 3);
   } else if (v.hud && v.mode != V_BPM) {
     char b[16]; snprintf(b, sizeof(b), "%.1f", v.bpm);
     s.setTextDatum(bottom_right); s.setTextColor(V_DIM); s.drawString(b, W - 4, H - 3);

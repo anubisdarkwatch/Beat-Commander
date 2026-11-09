@@ -14,7 +14,8 @@ BPM, flashes its 1.54" screen and RGB LED on every beat, and broadcasts each bea
 - **Bridge:** Heltec V3, linking LoRa and ESP-NOW for the booth gear
 - **Booth controllers:** CYD console, M5Dial, M5Stack Tab5 Command Center, Cardputer ADV terminal, LilyGo T-Deck Plus Beat Deck (its own LoRa radio)
 - **Visualizers:** TTGO T-Display, CYD screens and the Rabbit-Labs Phantom, turning every beat into visuals
-- **Gateway:** XIAO ESP32-S3 on USB: MIDI clock, Ableton Link, OSC, and the Tab5's radio
+- **Gateway:** XIAO ESP32-S3 on USB: MIDI clock, Ableton Link, OSC, and the Tab5's radio; or the T-Dongle S3 with a screen
+- **Beat Light:** T-Dongle C5, a USB beat light for any charger or power bank
 
 Formerly "W10 Beat Conductor". Companion project: [W10-ISM-Waterfall](https://github.com/anubisdarkwatch/W10-ISM-Waterfall).
 
@@ -50,6 +51,8 @@ Every board in the system has a ready-made `.bin`:
 | M5Stack M5Dial | Handheld takeover controller | [`firmware/M5Dial-Beat-Dial-v1.0.bin`](firmware/M5Dial-Beat-Dial-v1.0.bin) |
 | M5Stack StickS3 | Pocket conductor (mic) / beat badge | [`firmware/StickS3-Pocket-Conductor-v1.0.5.bin`](firmware/StickS3-Pocket-Conductor-v1.0.5.bin) |
 | Seeed XIAO ESP32-S3 | Beat Gateway (USB MIDI clock + feed for Beat Hub) | [`firmware/Beat-Gateway-XIAO-S3-v1.3.bin`](firmware/Beat-Gateway-XIAO-S3-v1.3.bin) |
+| LilyGo T-Dongle S3 | Beat Gateway Dongle: MIDI clock + Beat Hub feed, with a screen | [`firmware/TDongle-Beat-Gateway-v1.0.bin`](firmware/TDongle-Beat-Gateway-v1.0.bin) |
+| LilyGo T-Dongle C5 | Beat Light: USB beat light + Beat Hub feed (no MIDI) | [`firmware/TDongle-Beat-Light-C5-v1.0.bin`](firmware/TDongle-Beat-Light-C5-v1.0.bin) |
 | M5Stack Tab5 | Beat Command Center (big touch console, uses the Beat Gateway as its radio) | [`firmware/Tab5-Beat-Command-v1.0.5.bin`](firmware/Tab5-Beat-Command-v1.0.5.bin) |
 | M5Stack Cardputer ADV (or Cardputer) | Beat Commander terminal (keyboard booth controller) | [`firmware/Cardputer-Beat-Terminal-v1.0.bin`](firmware/Cardputer-Beat-Terminal-v1.0.bin) |
 | LilyGo T-Deck Plus / T-Deck (915 MHz) | Beat Deck: keyboard controller with its own LoRa radio, visuals, optional bridge | [`firmware/TDeck-Beat-Deck-v1.1.bin`](firmware/TDeck-Beat-Deck-v1.1.bin) |
@@ -517,6 +520,39 @@ it on LoRa, and the gateway mirrors the bridge's confirmation for consoles. The 
 **Build from source:** Arduino IDE 2.x, esp32 by Espressif 3.x, board **XIAO_ESP32S3**, USB Mode
 **USB-OTG (TinyUSB)**, USB CDC On Boot **Disabled**. No extra libraries. Latency figures (how long after the beat each
 frame type arrives) are at the top of `xiao_beat_gateway.ino`.
+
+## T-Dongle S3 Beat Gateway + T-Dongle C5 Beat Light
+
+![T-Dongle beat screens](docs/tdongle-screens.png)
+
+LilyGo's USB-stick boards with a 0.96" screen and an RGB LED. Both plug straight into a USB-A port, no cable.
+
+**T-Dongle S3 = Beat Gateway Dongle.** Everything the [XIAO Beat Gateway](#beat-gateway-xiao-esp32-s3--beat-hub) does
+(USB MIDI clock, the serial feed for Beat Hub and TrackID, the Tab5's radio), plus a screen and an LED that flashes in
+the conductor's colour. Plug it into the DJ laptop for MIDI clock, or into the Pi so Beat Hub is one small stick.
+It shows up as "Beat Gateway", so Beat Hub and the Tab5 find it like the XIAO.
+
+**T-Dongle C5 = Beat Light.** The C5 can't be a USB MIDI device, so it's a pocket beat light: plug it into any USB
+charger or power bank and the LED and screen pulse on every beat. Handy as cheap beat beacons around the booth.
+It also prints the same serial feed, so Beat Hub (v1.1+) can use it for Ableton Link and OSC, just without MIDI clock.
+
+| Button (BOOT) | Does |
+|---|---|
+| press | next page: **BEAT** (BPM, LIVE / BOOTH / HOLD / WAIT, MIDI clock, bar, beat boxes), **STATS** (source, RSSI, beats, link frames, bridge), then the visuals **PULSE**, **TUNNEL**, **BARS**, **WARP**, **PLASMA** |
+| hold 1.5 s | **AUTO** on / off: a new visual every 8 bars |
+| hold 4 s | display fix (colour order / flip / invert): repeat until it looks right |
+
+The screen tells you what letting go will do. Pages and settings are saved. With no beat, the visuals run a 120 BPM
+demo and the LED blips amber every 2 s.
+
+**Flash it:** [Flash Station](https://anubisdarkwatch.github.io/flash/) (Beat Gateway Dongle / Beat Light cards), or
+the `.bin`s above at 0x0. If it won't connect: hold the button on the dongle while plugging it in, then INSTALL.
+
+**Build from source:** `tdongle_beat_gateway/`, library LovyanGFX. **S3:** esp32 by Espressif 3.x, board
+**ESP32S3 Dev Module**, Flash 16MB, USB Mode **USB-OTG (TinyUSB)**, USB CDC On Boot **Disabled**. **C5:** board package
+**M5Stack** 3.x, board **M5StampC5** (any ESP32-C5 board works), USB CDC On Boot **Enabled**, build with
+`-DBOARD_TDONGLE_C5`. Fonts: `tools/mkfonts_viz.py` + `tools/mkfonts_dongle.py`. Previews:
+`tools/build_preview.sh <M5GFX folder> <out folder> preview_dongle.cpp`.
 
 ## Hardware notes (W10)
 

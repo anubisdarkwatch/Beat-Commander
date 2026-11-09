@@ -34,7 +34,7 @@ try:
 except ImportError:                      # Link is optional (no wheel for 32-bit ARM)
     aalink = None
 
-VERSION = "1.0"
+VERSION = "1.1"
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 log = logging.getLogger("beat-hub")
 
@@ -222,6 +222,11 @@ def find_port():
     ids = glob.glob("/dev/serial/by-id/*Beat_Gateway*")
     if ids:
         return ids[0]
+    # T-Dongle C5 Beat Light: the C5's built-in USB serial has Espressif's generic name. Any one will do as a
+    # fallback; set [gateway] port in the config to pin a specific device if more than one ESP32 is plugged in.
+    for p in list_ports.comports():
+        if p.vid == 0x303A and "JTAG" in " ".join(str(x) for x in (p.product, p.description) if x):
+            return p.device
     return None
 
 
