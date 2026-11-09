@@ -44,8 +44,8 @@ Every board in the system has a ready-made `.bin`:
 | Board | Role | File |
 |---|---|---|
 | Meshnology W10 | Conductor (mic, LoRa TX) | [`firmware/W10-Beat-Conductor-v1.0.bin`](firmware/W10-Beat-Conductor-v1.0.bin) |
-| Heltec WiFi LoRa 32 V3 | Follower (flashes on the beat) | [`firmware/Beat-Follower-HeltecV3-v1.0.bin`](firmware/Beat-Follower-HeltecV3-v1.0.bin) |
-| Heltec WiFi LoRa 32 V3 | Bridge for the booth console | [`firmware/Beat-Bridge-HeltecV3-v1.0.bin`](firmware/Beat-Bridge-HeltecV3-v1.0.bin) |
+| Heltec WiFi LoRa 32 V3 | Follower (flashes on the beat) | [`firmware/Beat-Follower-HeltecV3-v1.1.bin`](firmware/Beat-Follower-HeltecV3-v1.1.bin) |
+| Heltec WiFi LoRa 32 V3 | Bridge for the booth console | [`firmware/Beat-Bridge-HeltecV3-v1.1.bin`](firmware/Beat-Bridge-HeltecV3-v1.1.bin) |
 | CYD (ESP32-2432S028R) | Booth console | [`firmware/CYD-Beat-Console-v1.0.5.bin`](firmware/CYD-Beat-Console-v1.0.5.bin) |
 | M5Stack M5Dial | Handheld takeover controller | [`firmware/M5Dial-Beat-Dial-v1.0.bin`](firmware/M5Dial-Beat-Dial-v1.0.bin) |
 | M5Stack StickS3 | Pocket conductor (mic) / beat badge | [`firmware/StickS3-Pocket-Conductor-v1.0.5.bin`](firmware/StickS3-Pocket-Conductor-v1.0.5.bin) |
@@ -100,18 +100,24 @@ A follower just listens on those settings and flashes when a packet arrives (~10
 
 ## Follower: Heltec WiFi LoRa 32 V3
 
+![Heltec V3 beat screen](docs/heltec-screens.png)
+
 `heltec_v3_beat_follower/heltec_v3_beat_follower.ino` turns a Heltec V3 into a follower that flashes in sync with the conductor.
 
 - Listens on 916.0 MHz, SF7 / BW500, and flashes the white LED and the OLED (full-screen invert) on every received beat; the downbeat is brighter
-- OLED shows BPM, the 1-2-3-4 bar position, RSSI / SNR and packet / loss counts, with **LIVE**, **HOLD** or **WAIT** status
+- **Beat screen** on the OLED, seven pages: **BEAT** (big BPM, bar count, tempo sweep, 1-2-3-4 boxes), **PULSE**
+  (rings out of the centre), **BARS** (equalizer with falling caps), **TUNNEL** (spinning squares), **WARP**
+  (starfield that surges on the beat), **SCOPE** (waveform that punches on the beat) and **STATS** (RSSI, SNR, beats
+  in, lost, BPM). **PRG** press = next page, hold 1 s = **AUTO** (new visual every 8 bars); saved
+- Status **LIVE**, **HOLD** or **WAIT**; while waiting, the visuals idle along so the screen is never blank
 - **Flywheel:** if packets drop, it keeps flashing at the last tempo for 4 s (status **HOLD**)
 - Optional WS2812 strip on GPIO47 (set `STRIP_LEN`, needs Adafruit NeoPixel), colored by the conductor's hue, which changes every bar
-- Prints an I2C scan at boot, so a dead OLED shows up in the serial log
+- The OLED runs from its own task, so drawing never delays a beat; the panel flash lands within ~1 ms
 
 Tested on a desk with no losses: 300+ packets, RSSI around −75 dBm, SNR around +10 dB.
 
 Build: board **ESP32S3 Dev Module**, USB CDC On Boot **Disabled** (the V3 uses a USB-UART bridge), PSRAM **Disabled**,
-library **Adafruit GFX**. Serial monitor at 115200.
+library **LovyanGFX**. Serial monitor at 115200. Previews: `tools/build_preview.sh <M5GFX folder> <out folder> preview_oled.cpp`.
 
 Heltec V3 pins: LoRa NSS 8, SCK 9, MOSI 10, MISO 11, RST 12, BUSY 13, DIO1 14 (TCXO on DIO3 at 1.8 V);
 OLED SDA 17, SCL 18, RST 21, power via Vext (GPIO36, LOW = on); LED 35.
@@ -140,12 +146,14 @@ W10 conductor ──LoRa 916.0 MHz──► Heltec V3 bridge ──ESP-NOW──
 ```
 
 The CYD (ESP32-2432S028R) has no LoRa radio, so a Heltec V3 does the radio work. The bridge needs no
-screen: a V3 with a dead OLED is perfect for this. No soldering anywhere, just two USB cables.
+screen: a V3 with a dead OLED is perfect for this. If its OLED works, the bridge shows the same beat screen as the
+follower (its STATS page shows beats heard, beats sent for the booth and booth gear seen). No soldering anywhere,
+just two USB cables.
 
 ### Flash it (browser, no installs)
 
 Use the steps in [Flash it from the browser](#flash-it-from-the-browser-no-arduino-ide) with
-`CYD-Beat-Console-v1.0.5.bin` on the CYD and `Beat-Bridge-HeltecV3-v1.0.bin` on the Heltec V3.
+`CYD-Beat-Console-v1.0.5.bin` on the CYD and `Beat-Bridge-HeltecV3-v1.1.bin` on the Heltec V3.
 
 **First boot of the CYD:**
 1. **Display check.** CYD batches use different panels, so the image can come out mirrored or with red and

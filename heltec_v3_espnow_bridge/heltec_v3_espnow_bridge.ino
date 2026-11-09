@@ -3,16 +3,21 @@
 // to the console over ESP-NOW. When the console takes over, it sends beats here and this board
 // transmits them on the beat link, so followers keep flashing from the booth.
 // Needs no screen: a Heltec V3 with a dead OLED works fine. White LED: blink = beat heard, double = beat sent.
+// With a working OLED it's a beat screen too (oled_viz.h): BEAT, PULSE, BARS, TUNNEL, WARP, SCOPE and STATS
+// (heard / sent for the booth / booth gear seen). PRG press = next screen, hold 1 s = AUTO. Saved.
 // Built by Anubis Darkwatch with Claude. MIT license.
 //
-// Arduino IDE 2.x, esp32 by Espressif (core 2.x or 3.x). Board "ESP32S3 Dev Module",
-// USB CDC On Boot: Disabled, PSRAM: Disabled. No extra libraries. Serial monitor 115200.
+// Arduino IDE 2.x, esp32 by Espressif 3.x. Board "ESP32S3 Dev Module",
+// USB CDC On Boot: Disabled, PSRAM: Disabled. Library: LovyanGFX. Serial monitor 115200.
 
 #include <SPI.h>
 #include <WiFi.h>
 #include <esp_now.h>
 #include <esp_wifi.h>
 #include "link.h"
+#include "oled_screen.h"
+
+#define FW_VERSION "1.1"
 
 // ---------- options ----------
 #define LINK_FREQ_HZ   916000000UL
@@ -73,6 +78,7 @@ volatile bool txBusy = false;
 uint32_t txStart = 0;
 uint8_t lastSeq = 0; bool heardAny = false;
 uint32_t heard = 0, sent = 0;
+uint32_t lastRxMs = 0, lastTxMs = 0; int lastRssi = 0; int8_t lastSnr4 = 0;
 BeatPacket txPkt;
 
 void sendBeat(const BeatPacket& p) {
@@ -92,8 +98,23 @@ QueueHandle_t fireQ;
 
 void espnowSend(const LinkFrame& f) { esp_now_send(BCAST, (const uint8_t*)&f, sizeof(f)); }
 
-void onFrame(const uint8_t* d, int len) {
+// booth gear seen (distinct senders in the last 30 s), for the stats screen
+struct Peer { uint8_t mac[6]; uint32_t ms; };
+Peer peers[8];
+void notePeer(const uint8_t* mac) {
+  uint32_t now = millis(); int slot = -1, oldest = 0;
+  for (int i = 0; i < 8; i++) {
+    if (peers[i].ms && memcmp(peers[i].mac, mac, 6) == 0) { slot = i; break; }
+    if (peers[i].ms < peers[oldest].ms) oldest = i;
+  }
+  if (slot < 0) { slot = oldest; memcpy(peers[slot].mac, mac, 6); }
+  peers[slot].ms = now | 1;
+}
+uint32_t peerCount() { uint32_t n = 0, now = millis(); for (auto& p : peers) if (p.ms && now - p.ms < 30000) n++; return n; }
+
+void onFrame(const uint8_t* mac, const uint8_t* d, int len) {
   if (!linkValid(d, len)) return;
+  if (mac) notePeer(mac);
   LinkFrame f; memcpy(&f, d, sizeof(f));
   if (f.type == LF_FIRE) xQueueSend(fireQ, &f, 0);
 }
@@ -106,9 +127,9 @@ bool espnowInit() {
   memcpy(peer.peer_addr, BCAST, 6); peer.channel = LINK_ESPNOW_CH; peer.encrypt = false;
   esp_now_add_peer(&peer);
 #if ESP_ARDUINO_VERSION_MAJOR >= 3
-  esp_now_register_recv_cb([](const esp_now_recv_info_t*, const uint8_t* d, int len) { onFrame(d, len); });
+  esp_now_register_recv_cb([](const esp_now_recv_info_t* i, const uint8_t* d, int len) { onFrame(i ? i->src_addr : nullptr, d, len); });
 #else
-  esp_now_register_recv_cb([](const uint8_t*, const uint8_t* d, int len) { onFrame(d, len); });
+  esp_now_register_recv_cb([](const uint8_t* mac, const uint8_t* d, int len) { onFrame(mac, d, len); });
 #endif
   return true;
 }
@@ -125,7 +146,7 @@ void setup() {
   pinMode(LED_PIN, OUTPUT); digitalWrite(LED_PIN, LOW);
   pinMode(L_NSS, OUTPUT); digitalWrite(L_NSS, HIGH);
   pinMode(L_BUSY, INPUT); pinMode(L_DIO1, INPUT);
-  pinMode(36, OUTPUT); digitalWrite(36, HIGH);         // Vext off: no OLED needed
+  Serial.printf("# OLED %s\n", screenBegin(true) ? "found: beat screen on" : "not found (fine, it runs without)");
   fireQ = xQueueCreate(4, sizeof(LinkFrame));
   SPI.begin(L_SCK, L_MISO, L_MOSI, L_NSS);
   radioOk = loraInit();
@@ -157,6 +178,7 @@ void loop() {
       a.seq = txPkt.seq; a.bpm10 = txPkt.bpm10; a.beat = txPkt.beat; a.hue = txPkt.hue; a.count = sent;
       espnowSend(a);
       led(25); ledBlink2 = now + 60;
+      screenBeat(txPkt.bpm10, txPkt.beat, now); lastTxMs = now;
       Serial.printf("TX,%u,%.1f,%u,%u,,\n", txPkt.seq, txPkt.bpm10 / 10.0f, txPkt.beat, txPkt.hue);
     } else if ((irq & 0x0002) && !(irq & 0x0040)) {    // RxDone, CRC good
       uint8_t s[4] = {0x13, 0, 0, 0}, rs[4]; loraXfer(s, 4, rs);
@@ -173,6 +195,7 @@ void loop() {
           espnowSend(rf);
           lastSeq = p.seq; heardAny = true; heard++;
           led(p.beat == 0 ? 60 : 25);
+          screenBeat(p.bpm10, p.beat, now); lastRxMs = now; lastRssi = rssi; lastSnr4 = snr4;
           Serial.printf("RX,%u,%.1f,%u,%u,%d,%.1f\n", p.seq, p.bpm10 / 10.0f, p.beat, p.hue, rssi, snr4 / 4.0f);
         }
       }
@@ -188,6 +211,18 @@ void loop() {
     espnowSend(h);
   }
   if (txBusy && now - txStart > 200) { txBusy = false; startRx(); }   // TxDone never came: recover
+
+  // --- screen ---
+  if (screenOk) {
+    static uint32_t lastScr = 0;
+    if (now - lastScr > 50) {
+      lastScr = now;
+      uint32_t last = lastTxMs > lastRxMs ? lastTxMs : lastRxMs, age = now - last;
+      screenLink(!last ? OL_WAIT : age < 1500 ? (lastTxMs > lastRxMs ? OL_BOOTH : OL_LIVE) : age < 4000 ? OL_HOLD : OL_WAIT);
+      screenStats(lastRssi, lastSnr4, heard, 0, sent, peerCount());
+    }
+    screenButton();
+  }
 
   // --- LED ---
   if (ledOffAt && (int32_t)(now - ledOffAt) >= 0) { digitalWrite(LED_PIN, LOW); ledOffAt = 0; }
