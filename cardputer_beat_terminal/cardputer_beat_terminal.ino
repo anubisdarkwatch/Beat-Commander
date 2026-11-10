@@ -19,7 +19,7 @@
 #include "link.h"
 #include "ui.h"
 
-#define FW_VERSION   "1.0"
+#define FW_VERSION   "1.0.1"
 #define LINK_AIR_MS  11     // in TAKE, flash this long after sending (ESP-NOW + LoRa airtime): matches the followers
 #define FLYWHEEL_MS  4000   // keep the beat going this long after the last packet
 #define CLICK_SOUND  1
@@ -272,7 +272,8 @@ void setup() {
   auto cfg = M5.config();
   M5Cardputer.begin(cfg, true);
   Serial.begin(115200);
-  M5Cardputer.Display.setRotation(1);
+  // landscape, whatever this M5GFX version calls it (newer ones count the panel offset in, so 1 became portrait)
+  if (M5Cardputer.Display.width() < M5Cardputer.Display.height()) M5Cardputer.Display.setRotation(M5Cardputer.Display.getRotation() ^ 1);
   M5Cardputer.Display.setBrightness(180);
   M5Cardputer.Speaker.setVolume(90);
   initFonts();
