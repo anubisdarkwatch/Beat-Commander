@@ -16,6 +16,7 @@ BPM, flashes its 1.54" screen and RGB LED on every beat, and broadcasts each bea
 - **Visualizers:** TTGO T-Display, CYD screens and the Rabbit-Labs Phantom, turning every beat into visuals
 - **Gateway:** XIAO ESP32-S3 on USB: MIDI clock, Ableton Link, OSC, and the Tab5's radio; or the T-Dongle S3 with a screen
 - **Beat Light:** T-Dongle C5, a USB beat light for any charger or power bank
+- **Stage lighting:** Beat Strip, an ESP32-C5 board driving a WS2812B / SK6812 LED strip on the beat
 
 Formerly "W10 Beat Conductor". Companion project: [W10-ISM-Waterfall](https://github.com/anubisdarkwatch/W10-ISM-Waterfall).
 
@@ -53,6 +54,8 @@ Every board in the system has a ready-made `.bin`:
 | Seeed XIAO ESP32-S3 | Beat Gateway (USB MIDI clock + feed for Beat Hub) | [`firmware/Beat-Gateway-XIAO-S3-v1.3.bin`](firmware/Beat-Gateway-XIAO-S3-v1.3.bin) |
 | LilyGo T-Dongle S3 | Beat Gateway Dongle: MIDI clock + Beat Hub feed, with a screen | [`firmware/TDongle-Beat-Gateway-v1.0.bin`](firmware/TDongle-Beat-Gateway-v1.0.bin) |
 | LilyGo T-Dongle C5 | Beat Light: USB beat light + Beat Hub feed (no MIDI) | [`firmware/TDongle-Beat-Light-C5-v1.0.bin`](firmware/TDongle-Beat-Light-C5-v1.0.bin) |
+| ESP32-C5 DevKit / Waveshare C5 | Beat Strip: drives an LED strip on the beat | [`firmware/C5-Beat-Strip-v1.0-devkit.bin`](firmware/C5-Beat-Strip-v1.0-devkit.bin) |
+| Seeed XIAO ESP32-C5 | Beat Strip (strip on D0) | [`firmware/C5-Beat-Strip-v1.0-xiao.bin`](firmware/C5-Beat-Strip-v1.0-xiao.bin) |
 | M5Stack Tab5 | Beat Command Center (big touch console, uses the Beat Gateway as its radio) | [`firmware/Tab5-Beat-Command-v1.0.5.bin`](firmware/Tab5-Beat-Command-v1.0.5.bin) |
 | M5Stack Cardputer ADV (or Cardputer) | Beat Commander terminal (keyboard booth controller) | [`firmware/Cardputer-Beat-Terminal-v1.0.bin`](firmware/Cardputer-Beat-Terminal-v1.0.bin) |
 | LilyGo T-Deck Plus / T-Deck (915 MHz) | Beat Deck: keyboard controller with its own LoRa radio, visuals, optional bridge | [`firmware/TDeck-Beat-Deck-v1.1.bin`](firmware/TDeck-Beat-Deck-v1.1.bin) |
@@ -579,6 +582,53 @@ the `.bin`s above at 0x0. If it won't connect: hold the button on the dongle whi
 **M5Stack** 3.x, board **M5StampC5** (any ESP32-C5 board works), USB CDC On Boot **Enabled**, build with
 `-DBOARD_TDONGLE_C5`. Fonts: `tools/mkfonts_viz.py` + `tools/mkfonts_dongle.py`. Previews:
 `tools/build_preview.sh <M5GFX folder> <out folder> preview_dongle.cpp`.
+
+## Beat Strip: ESP32-C5 + an LED strip
+
+![Beat Strip patterns over two bars](docs/strip-patterns.png)
+
+An ESP32-C5 board (Espressif DevKit, Waveshare C5 board, or Seeed XIAO ESP32-C5) drives a **5V WS2812B or SK6812
+RGB** LED strip on the beat, in the conductor's colour, with a bigger hit on beat 1. This is the system's stage
+lighting: a strip along the booth front or behind the decks. Above: each pattern over two bars, one column per LED.
+
+| Pattern | Looks like |
+|---|---|
+| **PULSE** | the whole strip hits on the beat and fades |
+| **CHASE** | a comet runs the strip once per beat, changing direction every bar |
+| **BURST** | a ring flies out from the centre each beat |
+| **BAR** | four sections light up 1-2-3-4 through the bar |
+| **SPARKLE** | random LEDs catch every beat, more on beat 1 |
+| **RAINBOW** | a rainbow that steps along on every beat |
+
+With no beat it breathes amber softly. The board's own LED flashes too. It also prints the Beat Gateway's serial
+feed, so plugged into the Pi it can feed Beat Hub (Ableton Link + OSC, no MIDI clock).
+
+**Wiring** (three wires, no soldering if your board has header pins; JST-to-Dupont jumpers fit most strips):
+
+| Strip | Board |
+|---|---|
+| 5V (red) | 5V / VBUS |
+| GND (white or black) | GND |
+| DIN, data (green) | **GPIO1** (on the XIAO: **D0**). Change with `pin <gpio>`. |
+
+Up to about 60 LEDs run off the board's USB from a charger or power bank: the firmware caps the current (900 mA by
+default, `limit <mA>`). For longer strips, power the strip from its own 5V supply and join its GND to the board's GND.
+Get **5V RGB** strips (not 12V, not RGBW).
+
+| BOOT button | Does |
+|---|---|
+| press | next pattern (the first LEDs light up to show its number) |
+| hold 1.5 s | AUTO: a new pattern every 8 bars (green = on, red = off) |
+| hold 4 s | brightness 25 / 50 / 75 / 100 % |
+
+Serial commands (Flash Station's console, or any serial monitor): `?`, `leds <n>` (default 60), `pin <gpio>`,
+`bright <1-100>`, `limit <mA>`, `pattern <pulse|chase|burst|bar|sparkle|rainbow>`, `auto on|off`, `test` (red,
+green, blue, white quarters: checks the wiring and the LED count). Everything is saved.
+
+**Flash it:** [Flash Station](https://anubisdarkwatch.github.io/flash/), **Beat Strip** card for your board (DevKit /
+Waveshare, or XIAO). **Build from source:** `c5_beat_strip/`, board package M5Stack 3.x (or esp32 3.3+), board
+**M5StampC5** (any ESP32-C5), USB CDC On Boot **Enabled**, no extra libraries; add `-DBOARD_XIAO_C5` for the XIAO.
+Pattern preview: `g++ -O2 -o preview_strip tools/preview_strip.cpp && ./preview_strip`.
 
 ## Hardware notes (W10)
 
