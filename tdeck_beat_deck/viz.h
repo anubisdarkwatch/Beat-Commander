@@ -8,8 +8,8 @@
 #include <string.h>
 #include "fonts_viz.h"
 
-enum VizMode : uint8_t { V_PULSE, V_TUNNEL, V_BARS, V_STARS, V_PLASMA, V_BPM, V_COUNT };
-static const char* const VIZ_NAME[V_COUNT] = {"PULSE", "TUNNEL", "BARS", "WARP", "PLASMA", "BPM"};
+enum VizMode : uint8_t { V_PULSE, V_TUNNEL, V_BARS, V_STARS, V_PLASMA, V_BPM, V_KALEIDO, V_GRID, V_PYRAMID, V_FIREWORKS, V_RAIN, V_COUNT };
+static const char* const VIZ_NAME[V_COUNT] = {"PULSE", "TUNNEL", "BARS", "WARP", "PLASMA", "BPM", "KALEIDO", "GRID", "PYRAMID", "FIREWORKS", "RAIN"};
 enum VizSrc : uint8_t { SRC_DEMO, SRC_W10, SRC_BOOTH };
 
 struct VizState {
@@ -45,12 +45,14 @@ static uint16_t vmix(uint8_t h, float lvl, float white) {   // hue at a level, w
 static const uint16_t V_AMB = 0xFD80, V_DIM = 0x6B4D, V_BG = 0x0000;
 
 // ------------------------------------------------------------------ fonts
-lgfx::VLWfont vfBig, vfDec, vfLbl;
-lgfx::PointerWrapper vwBig, vwDec, vwLbl;
+lgfx::VLWfont vfBig, vfDec, vfLbl, vfRain, vfAnkh;
+lgfx::PointerWrapper vwBig, vwDec, vwLbl, vwRain, vwAnkh;
 void vizInitFonts() {
   vwBig.set(F_BIG, sizeof(F_BIG)); vfBig.loadFont(&vwBig);
   vwDec.set(F_DEC, sizeof(F_DEC)); vfDec.loadFont(&vwDec);
   vwLbl.set(F_LBL, sizeof(F_LBL)); vfLbl.loadFont(&vwLbl);
+  vwRain.set(F_RAIN, sizeof(F_RAIN)); vfRain.loadFont(&vwRain);
+  vwAnkh.set(F_ANKH, sizeof(F_ANKH)); vfAnkh.loadFont(&vwAnkh);
 }
 
 // ------------------------------------------------------------------ helpers
@@ -213,6 +215,168 @@ static void drawBpm(LGFX_Sprite& s, const VizState& v, uint32_t now) {
   s.setFont(&vfLbl); s.setTextColor(V_DIM); s.setTextDatum(top_left); s.drawString(b, 8, 6);
 }
 
+// ------------------------------------------------------------------ KALEIDO: mirrored shards, a new pattern every beat
+static void drawKaleido(LGFX_Sprite& s, const VizState& v, uint32_t now) {
+  int W = s.width(), H = s.height(), cx = W / 2, cy = H / 2;
+  const int K = 6;                                         // 6 wedges, each mirrored = 12-fold
+  float R = sqrtf((float)cx * cx + (float)cy * cy);
+  float k = vpunch(v, now), ph = vphase(v, now);
+  static float spin = 0; static uint32_t last = 0;
+  float dt = last ? (now - last) / 1000.0f : 0; last = now; if (dt > 0.1f) dt = 0.1f;
+  spin += dt * (0.25f + 0.9f * k) * (v.bars & 1 ? -1 : 1);   // flips direction every bar
+  uint32_t seed = v.beatId * 2654435761u;
+  for (int sh = 0; sh < 7; sh++) {
+    uint32_t h = seed ^ (sh * 0x9E3779B9u); h ^= h >> 13; h *= 0x85EBCA6Bu; h ^= h >> 16;
+    float r0 = R * (0.08f + 0.85f * ((h & 255) / 255.0f)) * (0.85f + 0.25f * k + 0.1f * ph);
+    float a0 = ((h >> 8) & 255) / 255.0f * (3.14159f / K);
+    float sz = R * (0.10f + 0.18f * (((h >> 16) & 255) / 255.0f)) * (1 + 0.35f * k);
+    uint8_t hh = v.hue + ((h >> 24) & 63) - 16;
+    uint16_t col = vmix(hh, 0.35f + 0.65f * (1 - ph * 0.6f), (v.beatPos == 0 ? 0.45f : 0.15f) * k);
+    for (int w = 0; w < K * 2; w++) {
+      float base = spin + (w / 2) * (6.28318f / K);
+      float sgn = (w & 1) ? -1 : 1;                        // odd wedges are mirror images
+      float pa[3] = {a0, a0 + 0.30f, a0 - 0.25f}, pr[3] = {r0, r0 + sz, r0 + sz * 0.6f};
+      int x[3], y[3];
+      for (int c = 0; c < 3; c++) { float a = base + sgn * pa[c]; x[c] = cx + (int)(cosf(a) * pr[c]); y[c] = cy + (int)(sinf(a) * pr[c]); }
+      s.fillTriangle(x[0], y[0], x[1], y[1], x[2], y[2], col);
+    }
+  }
+  s.fillCircle(cx, cy, (int)(R * (0.04f + 0.06f * k)), vmix(v.hue, 1, 0.6f * k));
+}
+
+// ------------------------------------------------------------------ GRID: synthwave floor, sun on the horizon
+static void drawGrid(LGFX_Sprite& s, const VizState& v, uint32_t now) {
+  int W = s.width(), H = s.height(), cx = W / 2, hy = (int)(H * 0.48f);
+  float k = vpunch(v, now);
+  // sky glow + sun with stripes cut out of its lower half
+  for (int y = 0; y < hy; y += 3) s.fillRect(0, y, W, 3, vhueCol(v.hue + 20, 0.02f + 0.16f * (float)y / hy));
+  int sr = (int)(H * (0.22f + 0.05f * k * (v.beatPos == 0 ? 1.6f : 1)));
+  for (int y = -sr; y <= 0; y++) {
+    int row = hy + y - 2;
+    float f = (float)(-y) / sr;                           // 1 at the top of the sun, 0 at the horizon
+    if (f < 0.55f && ((int)(row / 4.0f + now / 120.0f) % 3) == 0) continue;   // scrolling cut-out bands
+    int hw = (int)sqrtf((float)sr * sr - (float)y * y);
+    s.drawFastHLine(cx - hw, row, hw * 2, vmix(v.hue + 40 - (int)(40 * f), 0.75f + 0.25f * k, 0.25f * f));
+  }
+  // floor
+  s.fillRect(0, hy, W, H - hy, vhueCol(v.hue, 0.04f));
+  float speed = v.bpm / 120.0f * (0.6f + 1.4f * k);
+  static float off = 0; static uint32_t last = 0;
+  float dt = last ? (now - last) / 1000.0f : 0; last = now; if (dt > 0.1f) dt = 0.1f;
+  off += dt * speed; off -= floorf(off);
+  uint16_t line = vmix(v.hue, 0.45f + 0.55f * k, 0.3f * k);
+  for (int i = 0; i < 12; i++) {                           // horizontal lines rushing towards you
+    float z = (i + 1 - off) / 12.0f; if (z <= 0) continue;
+    int y = hy + (int)((H - hy) * (0.04f / (z * z + 0.04f) - 0.04f / 1.04f) / (1 - 0.04f / 1.04f));
+    y = hy + (int)((H - hy) * (1 - z) * (1 - z));
+    if (y > hy && y < H) s.drawFastHLine(0, y, W, line);
+  }
+  for (int i = -10; i <= 10; i++) {                        // lines to the vanishing point
+    int xb = cx + i * W / 7;
+    s.drawLine(cx + i * 4, hy, xb, H, line);
+  }
+  s.drawFastHLine(0, hy, W, vmix(v.hue + 30, 1, 0.5f));
+}
+
+// ------------------------------------------------------------------ PYRAMID: glowing pyramid, rays on the beat, the ankh above
+static void drawPyramid(LGFX_Sprite& s, const VizState& v, uint32_t now) {
+  int W = s.width(), H = s.height(), cx = W / 2;
+  float k = vpunch(v, now);
+  bool down = v.beatPos == 0;
+  int base = H - (H < 120 ? 6 : 14), ph = (int)(H * 0.48f), hw = (int)(ph * 1.15f);
+  int ax = cx, ay = base - ph;
+  // rays from the apex
+  int nr = down ? 24 : 12; float len = (W + H) * (0.25f + 0.55f * k);
+  for (int i = 0; i < nr; i++) {
+    float a = -3.14159f + 3.14159f * (i + 0.5f) / nr + (v.beatId & 1 ? 0.06f : -0.06f);
+    if (sinf(a) > -0.05f) continue;                       // only above the horizon
+    s.drawLine(ax, ay, ax + (int)(cosf(a) * len), ay + (int)(sinf(a) * len), vhueCol(v.hue + 20, 0.15f + 0.6f * k));
+  }
+  // ground and dunes
+  s.fillRect(0, base, W, H - base, vhueCol(v.hue + 30, 0.12f));
+  // the pyramid: two faces, brick lines, outline
+  s.fillTriangle(ax, ay, cx - hw, base, cx, base, vhueCol(v.hue + 30, 0.30f + 0.25f * k));
+  s.fillTriangle(ax, ay, cx + hw, base, cx, base, vhueCol(v.hue + 30, 0.16f + 0.15f * k));
+  for (int r = 1; r < 7; r++) {
+    int y = ay + ph * r / 7, w = hw * r / 7;
+    s.drawFastHLine(cx - w, y, w * 2, vhueCol(v.hue + 30, 0.10f + 0.1f * k));
+  }
+  uint16_t edge = vmix(v.hue, 0.7f + 0.3f * k, (down ? 0.5f : 0.2f) * k);
+  s.drawLine(ax, ay, cx - hw, base, edge); s.drawLine(ax, ay, cx + hw, base, edge);
+  s.drawLine(ax, ay + 1, cx - hw, base + 1, edge); s.drawLine(ax, ay + 1, cx + hw, base + 1, edge);
+  s.fillCircle(ax, ay, 2 + (int)(5 * k), vmix(v.hue, 1, 0.7f * k));   // the capstone
+  // the ankh, floating above and bobbing with the beat
+  if (H >= 180) {
+    int y = ay - 8 - (int)(6 * (1 - vphase(v, now)));
+    s.setFont(&vfAnkh); s.setTextDatum(bottom_center); s.setTextColor(vmix(v.hue + 20, 0.55f + 0.45f * k, 0.45f * k));
+    s.drawString("\xEE\x80\x80", ax, y);
+  }
+}
+
+// ------------------------------------------------------------------ FIREWORKS: a burst on every beat, the big one on beat 1
+struct Spark { float x, y, vx, vy; uint16_t life, age; uint8_t hue; };
+static Spark sparks[220]; static int sparkN = 0; static uint32_t fwBeat = 0xFFFFFFFF, fwLast = 0;
+static void drawFireworks(LGFX_Sprite& s, const VizState& v, uint32_t now) {
+  int W = s.width(), H = s.height();
+  float dt = fwLast ? (now - fwLast) / 1000.0f : 0; fwLast = now; if (dt > 0.1f) dt = 0.1f;
+  float scale = (W < H ? W : H) / 135.0f;
+  if (v.beatId != fwBeat) {
+    fwBeat = v.beatId;
+    bool down = v.beatPos == 0;
+    int n = down ? 70 : 26;
+    float bx = W * (0.2f + 0.6f * vrand()), by = H * (0.2f + 0.35f * vrand());
+    float sp = (down ? 95 : 60) * scale;
+    for (int i = 0; i < n; i++) {
+      if (sparkN >= 220) { memmove(sparks, sparks + 1, sizeof(Spark) * 219); sparkN = 219; }
+      float a = 6.28318f * i / n + vrand() * 0.2f, m = sp * (0.6f + 0.4f * vrand());
+      sparks[sparkN++] = {bx, by, cosf(a) * m, sinf(a) * m, (uint16_t)(down ? 1900 : 1300), 0, (uint8_t)(v.hue + (down ? (i & 1) * 40 : 0))};
+    }
+  }
+  float g = 70 * scale;
+  int out = 0;
+  for (int i = 0; i < sparkN; i++) {
+    Spark& p = sparks[i];
+    p.age += (uint16_t)(dt * 1000);
+    if (p.age >= p.life) continue;
+    float px = p.x, py = p.y;
+    p.vx *= 1 - dt * 0.9f; p.vy = p.vy * (1 - dt * 0.9f) + g * dt;
+    p.x += p.vx * dt; p.y += p.vy * dt;
+    float f = 1 - (float)p.age / p.life;
+    uint16_t c = vmix(p.hue, 0.25f + 0.75f * f, f > 0.75f ? (f - 0.75f) * 2.5f : 0);
+    s.drawLine((int)px, (int)py, (int)p.x, (int)p.y, c);
+    if (f > 0.15f) s.fillRect((int)p.x, (int)p.y, 2, 2, c);
+    sparks[out++] = p;
+  }
+  sparkN = out;
+}
+
+// ------------------------------------------------------------------ RAIN: falling hieroglyphs that surge on the beat
+static void drawRain(LGFX_Sprite& s, const VizState& v, uint32_t now) {
+  int W = s.width(), H = s.height();
+  const int CW = 20, CH = 20;
+  int cols = W / CW, rows = H / CH + 1;
+  static float head[40]; static float spd[40]; static bool init = false; static uint32_t last = 0;
+  if (!init) { for (int i = 0; i < 40; i++) { head[i] = vrand() * rows; spd[i] = 0.6f + vrand() * 0.8f; } init = true; }
+  float dt = last ? (now - last) / 1000.0f : 0; last = now; if (dt > 0.1f) dt = 0.1f;
+  float k = vpunch(v, now), boost = 1 + 3.0f * k * (v.beatPos == 0 ? 1.5f : 1);
+  s.setFont(&vfRain); s.setTextDatum(top_center);
+  char g[4] = {(char)0xEE, (char)0x80, 0, 0};
+  for (int c = 0; c < cols && c < 40; c++) {
+    head[c] += dt * spd[c] * v.bpm / 60.0f * 2.2f * boost;
+    if (head[c] > rows + 14) { head[c] = -vrand() * 3; spd[c] = 0.6f + vrand() * 0.8f; }
+    int hrow = (int)head[c];
+    for (int t = 0; t < 14; t++) {
+      int r = hrow - t; if (r < 0 || r >= rows) continue;
+      uint32_t h = (uint32_t)(c * 73856093u ^ r * 19349663u ^ ((v.beatId + (t == 0 ? 0 : r)) / 2) * 83492791u);
+      g[2] = (char)(0x81 + (h >> 7) % 24);
+      float f = 1 - t / 14.0f;
+      uint16_t col = t == 0 ? vmix(v.hue, 1, 0.55f + 0.45f * k) : vhueCol(v.hue + (c & 7) * 3, (0.15f + 0.85f * f) * (0.6f + 0.4f * k));
+      s.setTextColor(col);
+      s.drawString(g, c * CW + CW / 2 + (W - cols * CW) / 2, r * CH);
+    }
+  }
+}
+
 // ------------------------------------------------------------------ frame
 void vizDraw(LGFX_Sprite& s, const VizState& v, uint32_t now) {
   s.fillScreen(V_BG);
@@ -222,6 +386,11 @@ void vizDraw(LGFX_Sprite& s, const VizState& v, uint32_t now) {
     case V_BARS: drawBars(s, v, now); break;
     case V_STARS: drawStars(s, v, now); break;
     case V_PLASMA: drawPlasma(s, v, now); break;
+    case V_KALEIDO: drawKaleido(s, v, now); break;
+    case V_GRID: drawGrid(s, v, now); break;
+    case V_PYRAMID: drawPyramid(s, v, now); break;
+    case V_FIREWORKS: drawFireworks(s, v, now); break;
+    case V_RAIN: drawRain(s, v, now); break;
     default: drawBpm(s, v, now); break;
   }
   int W = s.width(), H = s.height();

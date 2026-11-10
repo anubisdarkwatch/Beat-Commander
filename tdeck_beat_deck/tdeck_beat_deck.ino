@@ -29,7 +29,7 @@
 #include "link.h"
 #include "ui.h"
 
-#define FW_VERSION     "1.1"
+#define FW_VERSION     "1.2"
 #define LINK_FREQ_HZ   916000000UL
 #define LINK_POWER_DBM 10          // same as the W10 conductor and the Heltec bridge
 #define LINK_AIR_MS    11          // SF7 / BW500 airtime of a beat packet: flash this long after sending

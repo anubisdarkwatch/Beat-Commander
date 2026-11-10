@@ -27,7 +27,7 @@ int main() {
   dongleDraw(cv, v, now); save("1_gateway_live");
   v.gateway = false; v.src = DS_BOOTH; v.beatPos = 2; v.beatMs = now - 200; dongleDraw(cv, v, now); save("2_light_booth");
   v.page = P_STATS; dongleDraw(cv, v, now); save("3_stats");
-  const char* nm[] = {"4_pulse", "5_tunnel", "6_bars", "7_warp", "8_plasma"};
+  const char* nm[] = {"4_pulse", "5_tunnel", "6_bars", "7_warp", "8_plasma", "4k_kaleido", "4l_grid", "4m_pyramid", "4n_fireworks", "4o_rain"};
   for (int p = P_PULSE; p < P_COUNT; p++) {
     v.page = p; v.beatPos = 0;
     for (int i = 0; i < 20; i++) { v.beatMs = now - 400 + i * 20; dongleDraw(cv, v, now - 400 + i * 20); }

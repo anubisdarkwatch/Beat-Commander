@@ -35,7 +35,7 @@
 #include "gateway.h"
 #include "dongle_ui.h"
 
-#define FW_VERSION "1.0"
+#define FW_VERSION "1.1"
 
 #if defined(BOARD_TDONGLE_S3)
 #if ARDUINO_USB_MODE

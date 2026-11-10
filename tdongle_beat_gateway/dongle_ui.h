@@ -1,4 +1,4 @@
-// T-Dongle beat screen (0.96" 160x80): BEAT and STATS pages, plus five full-screen visuals from viz.h.
+// T-Dongle beat screen (0.96" 160x80): BEAT and STATS pages, plus ten full-screen visuals from viz.h.
 // Shared by tdongle_beat_gateway.ino (T-Dongle S3 Beat Gateway and T-Dongle C5 Beat Light) and tools/preview_dongle.cpp.
 #pragma once
 #include <math.h>
@@ -8,8 +8,8 @@
 #include "viz.h"
 
 constexpr int DW = 160, DH = 80;
-enum DPage : uint8_t { P_BEAT, P_STATS, P_PULSE, P_TUNNEL, P_BARS, P_WARP, P_PLASMA, P_COUNT };
-static const uint8_t PAGE_VIZ[P_COUNT] = {0, 0, V_PULSE, V_TUNNEL, V_BARS, V_STARS, V_PLASMA};
+enum DPage : uint8_t { P_BEAT, P_STATS, P_PULSE, P_TUNNEL, P_BARS, P_WARP, P_PLASMA, P_KALEIDO, P_GRID, P_PYRAMID, P_FIREWORKS, P_RAIN, P_COUNT };
+static const uint8_t PAGE_VIZ[P_COUNT] = {0, 0, V_PULSE, V_TUNNEL, V_BARS, V_STARS, V_PLASMA, V_KALEIDO, V_GRID, V_PYRAMID, V_FIREWORKS, V_RAIN};
 enum DState : uint8_t { D_WAIT, D_LOCK, D_FREE };
 enum DSrc : uint8_t { DS_NONE, DS_AIR, DS_BOOTH };
 

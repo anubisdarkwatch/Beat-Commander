@@ -52,18 +52,18 @@ Every board in the system has a ready-made `.bin`:
 | M5Stack M5Dial | Handheld takeover controller | [`firmware/M5Dial-Beat-Dial-v1.0.bin`](firmware/M5Dial-Beat-Dial-v1.0.bin) |
 | M5Stack StickS3 | Pocket conductor (mic) / beat badge | [`firmware/StickS3-Pocket-Conductor-v1.0.5.bin`](firmware/StickS3-Pocket-Conductor-v1.0.5.bin) |
 | Seeed XIAO ESP32-S3 | Beat Gateway (USB MIDI clock + feed for Beat Hub) | [`firmware/Beat-Gateway-XIAO-S3-v1.3.bin`](firmware/Beat-Gateway-XIAO-S3-v1.3.bin) |
-| LilyGo T-Dongle S3 | Beat Gateway Dongle: MIDI clock + Beat Hub feed, with a screen | [`firmware/TDongle-Beat-Gateway-v1.0.bin`](firmware/TDongle-Beat-Gateway-v1.0.bin) |
-| LilyGo T-Dongle C5 | Beat Light: USB beat light + Beat Hub feed (no MIDI) | [`firmware/TDongle-Beat-Light-C5-v1.0.bin`](firmware/TDongle-Beat-Light-C5-v1.0.bin) |
+| LilyGo T-Dongle S3 | Beat Gateway Dongle: MIDI clock + Beat Hub feed, with a screen | [`firmware/TDongle-Beat-Gateway-v1.1.bin`](firmware/TDongle-Beat-Gateway-v1.1.bin) |
+| LilyGo T-Dongle C5 | Beat Light: USB beat light + Beat Hub feed (no MIDI) | [`firmware/TDongle-Beat-Light-C5-v1.1.bin`](firmware/TDongle-Beat-Light-C5-v1.1.bin) |
 | ESP32-C5 DevKit / Waveshare C5 | Beat Strip: drives an LED strip on the beat | [`firmware/C5-Beat-Strip-v1.0-devkit.bin`](firmware/C5-Beat-Strip-v1.0-devkit.bin) |
 | Seeed XIAO ESP32-C5 | Beat Strip (strip on D0) | [`firmware/C5-Beat-Strip-v1.0-xiao.bin`](firmware/C5-Beat-Strip-v1.0-xiao.bin) |
 | M5Stack Tab5 | Beat Command Center (big touch console, uses the Beat Gateway as its radio) | [`firmware/Tab5-Beat-Command-v1.0.5.bin`](firmware/Tab5-Beat-Command-v1.0.5.bin) |
 | M5Stack Cardputer ADV (or Cardputer) | Beat Commander terminal (keyboard booth controller) | [`firmware/Cardputer-Beat-Terminal-v1.0.bin`](firmware/Cardputer-Beat-Terminal-v1.0.bin) |
-| LilyGo T-Deck Plus / T-Deck (915 MHz) | Beat Deck: keyboard controller with its own LoRa radio, visuals, optional bridge | [`firmware/TDeck-Beat-Deck-v1.1.bin`](firmware/TDeck-Beat-Deck-v1.1.bin) |
+| LilyGo T-Deck Plus / T-Deck (915 MHz) | Beat Deck: keyboard controller with its own LoRa radio, visuals, optional bridge | [`firmware/TDeck-Beat-Deck-v1.2.bin`](firmware/TDeck-Beat-Deck-v1.2.bin) |
 | Piglet (XIAO ESP32-C5 + OLED) | Beat badge: pocket follower + coverage checker | [`firmware/Piglet-Beat-Badge-C5-v1.0.3.bin`](firmware/Piglet-Beat-Badge-C5-v1.0.3.bin) |
-| LilyGo TTGO T-Display | Beat Visualizer (6 beat-synced visual modes) | [`firmware/Beat-Visualizer-v1.3-ttgo.bin`](firmware/Beat-Visualizer-v1.3-ttgo.bin) |
-| CYD (ESP32-2432S028R) | Beat Visualizer, badge-sized 2.8" | [`firmware/Beat-Visualizer-v1.3-cyd.bin`](firmware/Beat-Visualizer-v1.3-cyd.bin) |
-| CYD 3.2" IPS (ESP32-2432S032C) | Beat Visualizer, 3.2" IPS + capacitive touch | [`firmware/Beat-Visualizer-v1.3-cyd32.bin`](firmware/Beat-Visualizer-v1.3-cyd32.bin) |
-| Rabbit-Labs Phantom (ESP32-2432S024) | Beat Visualizer, 2.4" handheld (resistive or capacitive) | [`firmware/Beat-Visualizer-v1.3-phantom.bin`](firmware/Beat-Visualizer-v1.3-phantom.bin) |
+| LilyGo TTGO T-Display | Beat Visualizer (6 beat-synced visual modes) | [`firmware/Beat-Visualizer-v1.4-ttgo.bin`](firmware/Beat-Visualizer-v1.4-ttgo.bin) |
+| CYD (ESP32-2432S028R) | Beat Visualizer, badge-sized 2.8" | [`firmware/Beat-Visualizer-v1.4-cyd.bin`](firmware/Beat-Visualizer-v1.4-cyd.bin) |
+| CYD 3.2" IPS (ESP32-2432S032C) | Beat Visualizer, 3.2" IPS + capacitive touch | [`firmware/Beat-Visualizer-v1.4-cyd32.bin`](firmware/Beat-Visualizer-v1.4-cyd32.bin) |
+| Rabbit-Labs Phantom (ESP32-2432S024) | Beat Visualizer, 2.4" handheld (resistive or capacitive) | [`firmware/Beat-Visualizer-v1.4-phantom.bin`](firmware/Beat-Visualizer-v1.4-phantom.bin) |
 
 If **Connect** fails, put the board in download mode and try again: hold **BOOT** (Heltec: **PRG**) while
 plugging in, or hold it, tap **RST**, then release. On the W10, turn the LoRa beat link on with a 1 s hold of
@@ -330,7 +330,7 @@ PSRAM **Disabled**, USB CDC On Boot **Enabled**. Library **M5Unified** (installs
 ![Beat Visualizer modes](docs/visualizer.gif)
 
 Turns any colour screen into a beat-synced light. It follows the beat link over ESP-NOW (through the Heltec bridge),
-and every beat, the conductor's tempo and its colour drive six modes:
+and every beat, the conductor's tempo and its colour drive eleven modes:
 
 | Mode | What it does |
 |---|---|
@@ -340,6 +340,13 @@ and every beat, the conductor's tempo and its colour drive six modes:
 | **WARP** | starfield that kicks into warp on the beat |
 | **PLASMA** | a flowing colour field that pumps on the beat |
 | **BPM** | the tempo, big, with the beat in the bar |
+| **KALEIDO** | mirrored shards in 12-fold symmetry, a new pattern on every beat, spin flips every bar (v1.4) |
+| **GRID** | synthwave floor rushing towards you, a striped sun on the horizon that swells on beat 1 (v1.4) |
+| **PYRAMID** | a glowing pyramid throwing rays from its capstone on every beat, the ankh above on bigger screens (v1.4) |
+| **FIREWORKS** | a burst on every beat, the big one on beat 1, with gravity and fading trails (v1.4) |
+| **RAIN** | columns of falling hieroglyphs that surge on the beat (v1.4) |
+
+![The five v1.4 modes](docs/visualizer-new-modes.png)
 
 **AUTO** (on by default) moves to the next mode every 8 bars. With no beat link it runs a 120 BPM demo,
 so it's never dark. The colour follows the conductor's hue, which changes every bar.
@@ -446,7 +453,7 @@ The plain T-Deck (915 MHz) runs the same firmware.
 | `H` | help |
 
 The console shows the BPM, bar count, beat bars in the conductor's colour, and source (CONDUCTOR, BOOTH, DECK,
-FLYWHEEL), how the beat arrived (LORA or ESP-NOW), RSSI, lost, sent and nudge. The visuals page is the same six
+FLYWHEEL), how the beat arrived (LORA or ESP-NOW), RSSI, lost, sent and nudge. The visuals page is the same eleven
 modes as the Beat Visualizer, with a purple frame while you have the beat.
 
 **Bridge role** (`G`): the Deck then does the Heltec bridge's job too: it relays every LoRa beat to ESP-NOW,
@@ -567,7 +574,7 @@ It also prints the same serial feed, so Beat Hub (v1.1+) can use it for Ableton 
 
 | Button (BOOT) | Does |
 |---|---|
-| press | next page: **BEAT** (BPM, LIVE / BOOTH / HOLD / WAIT, MIDI clock, bar, beat boxes), **STATS** (source, RSSI, beats, link frames, bridge), then the visuals **PULSE**, **TUNNEL**, **BARS**, **WARP**, **PLASMA** |
+| press | next page: **BEAT** (BPM, LIVE / BOOTH / HOLD / WAIT, MIDI clock, bar, beat boxes), **STATS** (source, RSSI, beats, link frames, bridge), then the visuals **PULSE**, **TUNNEL**, **BARS**, **WARP**, **PLASMA**, **KALEIDO**, **GRID**, **PYRAMID**, **FIREWORKS**, **RAIN** (v1.1) |
 | hold 1.5 s | **AUTO** on / off: a new visual every 8 bars |
 | hold 4 s | display fix (colour order / flip / invert): repeat until it looks right |
 

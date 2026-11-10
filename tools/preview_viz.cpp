@@ -29,7 +29,7 @@ static void run(LGFX_Sprite& s, uint8_t mode, const char* tag, int ms, int every
 int main() {
   vizInitFonts();
   LGFX_Sprite tt, cyd; tt.setColorDepth(16); tt.createSprite(240, 135); cyd.setColorDepth(8); cyd.createSprite(320, 240);
-  const char* names[V_COUNT] = {"pulse", "tunnel", "bars", "warp", "plasma", "bpm"};
+  const char* names[V_COUNT] = {"pulse", "tunnel", "bars", "warp", "plasma", "bpm", "kaleido", "grid", "pyramid", "fireworks", "rain"};
   for (int m = 0; m < V_COUNT; m++) {
     char tag[32];
     snprintf(tag, sizeof(tag), "tt_%s", names[m]); run(tt, m, tag, 2400, 300, 1900);    // stills + short anim (TTGO)

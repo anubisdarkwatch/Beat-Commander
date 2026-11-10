@@ -38,7 +38,7 @@
 #include "link.h"
 #include "viz.h"
 
-#define FW_VERSION  "1.3"
+#define FW_VERSION  "1.4"
 #define FLYWHEEL_MS 4000
 
 // ================= display =================
