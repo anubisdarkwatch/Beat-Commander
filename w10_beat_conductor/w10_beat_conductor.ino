@@ -18,7 +18,7 @@
 #include <esp_wifi.h>
 #include "link.h"
 
-#define FW_VERSION "1.1"
+#define FW_VERSION "1.1.1"
 #define RELAY_HOLD_MS 2000      // booth beats this recent = relay mode (own mic steps aside)
 
 // ---------------- Pins (Meshnology W10 pin table) ----------------
@@ -124,7 +124,7 @@ bool espnowInit() {
   esp_now_register_recv_cb([](const esp_now_recv_info_t*, const uint8_t* d, int len) {
     if (!linkValid(d, len)) return;
     LinkFrame f; memcpy(&f, d, sizeof(f));
-    if (f.type == LF_FIRE || f.type == LF_HELLO) xQueueSend(linkQ, &f, 0);
+    if (f.type == LF_FIRE || f.type == LF_HELLO || f.type == LF_ACK) xQueueSend(linkQ, &f, 0);
   });
   return true;
 }
@@ -420,6 +420,10 @@ void loop() {
   LinkFrame lf;
   while (xQueueReceive(linkQ, &lf, 0) == pdTRUE) {
     if (lf.type == LF_HELLO) { otherBridgeMs = now; continue; }            // a Heltec bridge does the relaying
+    if (lf.type == LF_ACK) {                                               // a beat the Heltec bridge put on LoRa:
+      txSeq = lf.seq + 1;                                                  // carry on from its number, so followers
+      continue;                                                            // see no gap when our mic takes over again
+    }
     if (lf.bpm10 < 300 || lf.bpm10 > 3000) continue;
     if (!relaying(now)) Serial.println("booth beats: relay mode, own mic steps aside");
     relayMs = now;

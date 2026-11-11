@@ -47,7 +47,7 @@ Every board in the system has a ready-made `.bin`:
 
 | Board | Role | File |
 |---|---|---|
-| Meshnology W10 | Conductor (mic, LoRa TX) | [`firmware/W10-Beat-Conductor-v1.1.bin`](firmware/W10-Beat-Conductor-v1.1.bin) |
+| Meshnology W10 | Conductor (mic, LoRa TX) | [`firmware/W10-Beat-Conductor-v1.1.1.bin`](firmware/W10-Beat-Conductor-v1.1.1.bin) |
 | Heltec WiFi LoRa 32 V3 | Follower (flashes on the beat) | [`firmware/Beat-Follower-HeltecV3-v1.1.bin`](firmware/Beat-Follower-HeltecV3-v1.1.bin) |
 | Heltec WiFi LoRa 32 V3 | Bridge for the booth console | [`firmware/Beat-Bridge-HeltecV3-v1.1.bin`](firmware/Beat-Bridge-HeltecV3-v1.1.bin) |
 | CYD (ESP32-2432S028R) | Booth console | [`firmware/CYD-Beat-Console-v1.0.5.bin`](firmware/CYD-Beat-Console-v1.0.5.bin) |
