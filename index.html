@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Beat Commander · one kick drum, every screen in the room</title>
+<meta name="description" content="Beat Commander: an open-source beat-sync ecosystem. A mic hears the kick, finds the tempo and the downbeat, and every device in the room flashes on the same beat over LoRa and ESP-NOW. Flash every device from your browser.">
+<meta property="og:title" content="Beat Commander">
+<meta property="og:description" content="One kick drum. Every screen in the room. Zero cables. Open-source beat sync over LoRa + ESP-NOW.">
+<meta property="og:image" content="https://beatcommander.online/site/img/og.jpg">
+<meta property="og:url" content="https://beatcommander.online/">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#050505">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='12' fill='%23050505'/><circle cx='32' cy='32' r='14' fill='none' stroke='%23ffb000' stroke-width='5'/><circle cx='32' cy='32' r='5' fill='%2339ff14'/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Share+Tech+Mono&family=Noto+Sans+Egyptian+Hieroglyphs&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#050505; --card:#0e0b06; --line:#30260f; --amb:#ffb000; --amb-d:#8a6a2c; --grn:#39ff14; --txt:#ffd682; --dim:#a08b5e;
+  --beat:0; /* 0..1, set by the page's own beat clock */
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--txt);font:16px/1.6 "Share Tech Mono",ui-monospace,monospace;overflow-x:hidden}
+body::before{ /* CRT scanlines */
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:50;
+  background:repeating-linear-gradient(to bottom,rgba(0,0,0,0) 0 2px,rgba(0,0,0,.22) 2px 3px);
+}
+a{color:var(--amb)}
+h1,h2,h3{font-family:Orbitron,sans-serif;font-weight:900;letter-spacing:.04em;margin:0;color:var(--amb)}
+.wrap{max-width:1180px;margin:0 auto;padding:0 20px}
+.glyph{font-family:"Noto Sans Egyptian Hieroglyphs",serif}
+
+/* ---------- top bar ---------- */
+.top{position:sticky;top:0;z-index:40;background:rgba(5,5,5,.86);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+.top .wrap{display:flex;align-items:center;gap:18px;height:58px}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;font-family:Orbitron;font-weight:900;color:var(--amb);letter-spacing:.08em;white-space:nowrap}
+.brand .glyph{font-size:26px;line-height:1;text-shadow:0 0 calc(4px + 14px*var(--beat)) rgba(255,176,0,calc(.25 + .6*var(--beat)))}
+.nav{display:flex;gap:18px;margin-left:auto}
+.nav a{color:var(--dim);text-decoration:none;font-size:14px}
+.nav a:hover{color:var(--amb)}
+.bpm{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:999px;padding:4px 12px;font-size:13px;color:var(--dim);cursor:pointer;user-select:none;background:none;font-family:inherit}
+.bpm b{color:var(--txt);font-weight:400;min-width:4.2ch;text-align:right}
+.dots{display:flex;gap:4px}
+.dots i{width:7px;height:7px;border-radius:2px;background:#2a2210}
+.dots i.on{background:var(--grn);box-shadow:0 0 8px var(--grn)}
+.dots i.on.down{background:var(--amb);box-shadow:0 0 10px var(--amb)}
+@media (max-width:820px){.nav{display:none}.bpm{margin-left:auto}}
+@media (max-width:480px){.top .wrap{gap:10px;padding:0 14px}.brand{font-size:13px;letter-spacing:.03em}.brand .glyph{font-size:22px}.bpm{padding:4px 9px}.bpm>span:first-child{display:none}.wrap{padding:0 16px}}
+
+/* ---------- HUD frame helper ---------- */
+.hud{position:relative}
+.hud::before,.hud::after{content:"";position:absolute;width:18px;height:18px;border:2px solid var(--amb);pointer-events:none}
+.hud::before{top:-6px;left:-6px;border-right:0;border-bottom:0}
+.hud::after{bottom:-6px;right:-6px;border-left:0;border-top:0}
+
+/* ---------- hero ---------- */
+.hero{padding:64px 0 40px;position:relative}
+.hero .wrap{display:grid;grid-template-columns:1fr 1.15fr;gap:48px;align-items:center}
+.kicker{color:var(--grn);font-size:14px;letter-spacing:.2em}
+.hero h1{font-size:clamp(40px,6.4vw,78px);line-height:.98;margin:12px 0 18px;
+  text-shadow:0 0 calc(10px + 30px*var(--beat)) rgba(255,176,0,calc(.15 + .35*var(--beat)))}
+.hero h1 span{display:block;color:var(--txt);font-size:.42em;letter-spacing:.06em;margin-top:14px;font-weight:700;text-shadow:none}
+.lead{font-size:18px;color:var(--txt);max-width:34em}
+.lead em{color:var(--grn);font-style:normal}
+.ctas{display:flex;gap:14px;flex-wrap:wrap;margin-top:26px}
+.btn{display:inline-flex;align-items:center;gap:10px;font-family:Orbitron;font-weight:700;font-size:15px;letter-spacing:.08em;text-decoration:none;
+  padding:14px 22px;border-radius:6px;border:2px solid var(--amb);color:var(--amb);transition:background .15s,color .15s}
+.btn.solid{background:var(--amb);color:#000}
+.btn:hover{background:var(--grn);border-color:var(--grn);color:#000}
+.stats{display:flex;gap:28px;margin-top:30px;flex-wrap:wrap}
+.stats div{font-size:13px;color:var(--dim)}
+.stats b{display:block;font-family:Orbitron;font-size:26px;color:var(--amb)}
+.video{aspect-ratio:16/9;background:#000;border:1px solid var(--line);border-radius:8px;overflow:hidden;cursor:pointer}
+.video img,.video iframe{width:100%;height:100%;object-fit:cover;display:block;border:0}
+.video .play{position:absolute;inset:0;display:grid;place-items:center}
+.video .play span{width:84px;height:84px;border-radius:50%;background:rgba(0,0,0,.65);border:2px solid var(--amb);display:grid;place-items:center;
+  box-shadow:0 0 calc(10px + 30px*var(--beat)) rgba(255,176,0,.5)}
+.video .play span::after{content:"";border-left:26px solid var(--amb);border-top:16px solid transparent;border-bottom:16px solid transparent;margin-left:6px}
+@media (max-width:900px){.hero .wrap{grid-template-columns:1fr}.hero{padding-top:36px}}
+
+/* ---------- sections ---------- */
+section{padding:72px 0;border-top:1px solid var(--line)}
+.sh{display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;margin-bottom:28px}
+.sh h2{font-size:clamp(26px,3.4vw,38px)}
+.sh .num{color:var(--grn);font-size:14px;letter-spacing:.2em}
+.sh p{flex-basis:100%;margin:6px 0 0;color:var(--dim);max-width:52em}
+
+/* ---------- how it works diagram ---------- */
+.flow{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px}
+.flow svg{width:100%;height:auto;display:block}
+.flow .node rect{fill:#120e07;stroke:var(--amb-d);stroke-width:1.5}
+.flow .node.hit rect{stroke:var(--grn);fill:#0f1a07}
+.flow text{font-family:"Share Tech Mono";fill:var(--txt);font-size:15px}
+.flow .t{font-family:Orbitron;font-weight:700;fill:var(--amb);font-size:15px}
+.flow .lbl{fill:var(--dim);font-size:13px}
+.flow path{fill:none;stroke:#3a2e12;stroke-width:2}
+.steps3{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:22px}
+.steps3 div{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:16px}
+.steps3 b{font-family:Orbitron;color:var(--amb);display:block;margin-bottom:6px}
+@media (max-width:820px){.steps3{grid-template-columns:1fr}}
+
+/* ---------- ecosystem ---------- */
+.group{margin-bottom:44px}
+.group h3{font-size:18px;display:flex;align-items:center;gap:12px;margin-bottom:6px}
+.group h3::before{content:"";width:10px;height:10px;border-radius:2px;background:var(--grn);box-shadow:0 0 8px var(--grn)}
+.group > p{color:var(--dim);margin:0 0 16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:18px}
+.dev{background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden;display:flex;flex-direction:column;transition:border-color .15s,transform .15s}
+.dev:hover{border-color:var(--amb);transform:translateY(-2px)}
+.dev img{width:100%;height:auto;aspect-ratio:16/10;object-fit:cover;display:block;background:#000}
+.dev .b{padding:14px 16px 16px;display:flex;flex-direction:column;flex:1}
+.dev h4{margin:0;font-family:Orbitron;font-weight:700;font-size:15px;color:var(--amb);letter-spacing:.04em}
+.dev .hw{font-size:13px;color:var(--dim)}
+.dev p{margin:8px 0 14px;font-size:14px;flex:1}
+.dev .go{align-self:flex-start;font-family:Orbitron;font-weight:700;font-size:12px;letter-spacing:.1em;text-decoration:none;color:#000;background:var(--amb);padding:8px 14px;border-radius:5px}
+.dev .go:hover{background:var(--grn)}
+.dev .go.alt{background:none;color:var(--amb);border:1px solid var(--amb)}
+.tag{display:inline-block;font-size:11px;color:#000;background:var(--grn);border-radius:3px;padding:0 6px;margin-left:6px;vertical-align:2px;font-family:"Share Tech Mono"}
+
+/* ---------- modes ---------- */
+.modes{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:16px}
+.mode{background:#000;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.mode img{width:100%;height:auto;aspect-ratio:4/3;display:block;object-fit:cover}
+.mode div{padding:8px 12px;font-family:Orbitron;font-size:13px;color:var(--amb);letter-spacing:.08em;display:flex;justify-content:space-between}
+.mode div span{font-family:"Share Tech Mono";color:var(--dim);letter-spacing:0}
+
+/* ---------- start ---------- */
+.start{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;counter-reset:s}
+.start div{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:22px}
+.start div::before{counter-increment:s;content:"0" counter(s);font-family:Orbitron;font-weight:900;font-size:34px;color:var(--grn);display:block;margin-bottom:6px}
+.start h4{font-family:Orbitron;color:var(--amb);margin:0 0 8px;font-size:16px}
+.start p{margin:0;font-size:15px}
+@media (max-width:820px){.start{grid-template-columns:1fr}}
+.note{margin-top:22px;color:var(--dim);font-size:14px}
+
+/* ---------- footer ---------- */
+footer{border-top:1px solid var(--line);padding:48px 0 60px;color:var(--dim);font-size:14px}
+footer .wrap{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:30px}
+footer h5{font-family:Orbitron;color:var(--amb);font-size:13px;letter-spacing:.12em;margin:0 0 10px}
+footer a{display:block;color:var(--txt);text-decoration:none;margin:3px 0}
+footer a:hover{color:var(--grn)}
+footer .sig{font-size:42px;color:var(--amb);line-height:1}
+@media (max-width:820px){footer .wrap{grid-template-columns:1fr}}
+
+@media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#"><span class="glyph">𓃣</span>BEAT COMMANDER</a>
+    <nav class="nav">
+      <a href="#how">How it works</a><a href="#ecosystem">Devices</a><a href="#modes">Visuals</a><a href="#start">Get started</a>
+      <a href="https://github.com/anubisdarkwatch/Beat-Commander">GitHub ↗</a>
+    </nav>
+    <button class="bpm" id="bpm" title="Tap a few times to set the page's tempo">
+      <span>BPM</span><b id="bpmv">120.0</b><span class="dots" id="dots"><i></i><i></i><i></i><i></i></span>
+    </button>
+  </div>
+</header>
+
+<main>
+<!-- ================= hero ================= -->
+<div class="hero">
+  <div class="wrap">
+    <div>
+      <div class="kicker">OPEN-SOURCE BEAT SYNC · LORA + ESP-NOW</div>
+      <h1>BEAT<br>COMMANDER<span>ONE KICK DRUM. EVERY SCREEN IN THE ROOM.</span></h1>
+      <p class="lead">A mic hears the kick, finds the tempo and the downbeat, and <em>every device in the room flashes on the same beat</em>: badges, screens, visualizers, LED strips and your DJ software. No cables, no Wi-Fi network, no app.</p>
+      <div class="ctas">
+        <a class="btn solid" href="https://anubisdarkwatch.github.io/flash/#beat">⚡ FLASH A DEVICE</a>
+        <a class="btn" href="https://github.com/anubisdarkwatch/Beat-Commander">GITHUB ↗</a>
+      </div>
+      <div class="stats">
+        <div><b>20+</b>device builds</div>
+        <div><b>916 MHz</b>LoRa beat link</div>
+        <div><b>11</b>beat visuals</div>
+        <div><b>0</b>IDEs needed</div>
+      </div>
+    </div>
+    <div class="video hud" id="video" role="button" tabindex="0" aria-label="Play the Beat Commander video">
+      <img src="https://i.ytimg.com/vi/Qkt_P5Uwy7A/maxresdefault.jpg" onerror="this.onerror=null;this.src='https://i.ytimg.com/vi/Qkt_P5Uwy7A/hqdefault.jpg'" alt="Beat Commander video: every screen flashing on the same beat">
+      <div class="play"><span></span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= how it works ================= -->
+<section id="how">
+  <div class="wrap">
+    <div class="sh"><span class="num">01</span><h2>HOW IT WORKS</h2>
+      <p>The conductor listens to the music and puts every beat on the air. A bridge hands it to the booth gear. Everything flashes on the beat, keeps time on its own if a packet goes missing, and any controller can take command.</p></div>
+    <div class="flow hud">
+      <svg viewBox="0 0 1100 330" role="img" aria-label="Speaker to W10 conductor over LoRa to followers and the Heltec bridge, then over ESP-NOW to booth controllers, visualizers and the gateway">
+        <defs><filter id="glow"><feGaussianBlur stdDeviation="3"/><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+        <path id="p1" d="M170 165 H300"/>
+        <path id="p2" d="M470 165 C540 165 540 60 600 60"/>
+        <path id="p3" d="M470 165 H600"/>
+        <path id="p4" d="M470 165 C540 165 540 270 600 270"/>
+        <path id="p5" d="M770 165 C830 165 830 60 900 60"/>
+        <path id="p6" d="M770 165 H900"/>
+        <path id="p7" d="M770 165 C830 165 830 270 900 270"/>
+        <g class="node" data-n="0"><rect x="20" y="130" width="150" height="70" rx="8"/><text class="t" x="95" y="160" text-anchor="middle">SPEAKER</text><text class="lbl" x="95" y="182" text-anchor="middle">the kick drum</text></g>
+        <g class="node" data-n="1"><rect x="300" y="122" width="170" height="86" rx="8"/><text class="t" x="385" y="152" text-anchor="middle">CONDUCTOR</text><text x="385" y="174" text-anchor="middle">W10 or StickS3</text><text class="lbl" x="385" y="194" text-anchor="middle">mic → tempo + beat 1</text></g>
+        <g class="node" data-n="2"><rect x="600" y="28" width="170" height="64" rx="8"/><text class="t" x="685" y="56" text-anchor="middle">FOLLOWERS</text><text class="lbl" x="685" y="78" text-anchor="middle">Heltec · T-Deck · badge</text></g>
+        <g class="node" data-n="2"><rect x="600" y="133" width="170" height="64" rx="8"/><text class="t" x="685" y="161" text-anchor="middle">BRIDGE</text><text class="lbl" x="685" y="183" text-anchor="middle">LoRa ⇄ ESP-NOW</text></g>
+        <g class="node" data-n="2"><rect x="600" y="238" width="170" height="64" rx="8"/><text class="t" x="685" y="266" text-anchor="middle">LED STRIPS</text><text class="lbl" x="685" y="288" text-anchor="middle">via ESP-NOW</text></g>
+        <g class="node" data-n="3"><rect x="900" y="28" width="180" height="64" rx="8"/><text class="t" x="990" y="56" text-anchor="middle">CONTROLLERS</text><text class="lbl" x="990" y="78" text-anchor="middle">CYD · Dial · Tab5 · more</text></g>
+        <g class="node" data-n="3"><rect x="900" y="133" width="180" height="64" rx="8"/><text class="t" x="990" y="161" text-anchor="middle">VISUALIZERS</text><text class="lbl" x="990" y="183" text-anchor="middle">TTGO · CYD · Phantom</text></g>
+        <g class="node" data-n="3"><rect x="900" y="238" width="180" height="64" rx="8"/><text class="t" x="990" y="266" text-anchor="middle">STUDIO</text><text class="lbl" x="990" y="288" text-anchor="middle">MIDI · Ableton Link</text></g>
+        <text class="lbl" x="235" y="152" text-anchor="middle">sound</text>
+        <text class="lbl" x="535" y="120" text-anchor="middle">LoRa 916</text>
+        <text class="lbl" x="835" y="120" text-anchor="middle">ESP-NOW</text>
+        <circle id="pulse" r="7" fill="#39ff14" filter="url(#glow)" opacity="0"/>
+        <g id="pulses"></g>
+      </svg>
+    </div>
+    <div class="steps3">
+      <div><b>HEAR</b>The conductor's mic finds the kick, works out the tempo and which beat is beat 1, and sends a 7-byte packet on every beat.</div>
+      <div><b>SPREAD</b>LoRa carries it across the venue; the bridge (or the W10 itself) hands it to ESP-NOW for the booth. Lost a packet? Every device keeps time on its own.</div>
+      <div><b>COMMAND</b>Any booth controller can take the beat: tap it, type a BPM or nudge it. Hand it back and the conductor picks up on the same grid.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= ecosystem ================= -->
+<section id="ecosystem">
+  <div class="wrap">
+    <div class="sh"><span class="num">02</span><h2>THE ECOSYSTEM</h2>
+      <p>Every device has a ready-made firmware: hit FLASH, plug it in over USB, install from Chrome or Edge. Most need no soldering at all.</p></div>
+    <div id="groups"></div>
+  </div>
+</section>
+
+<!-- ================= modes ================= -->
+<section id="modes">
+  <div class="wrap">
+    <div class="sh"><span class="num">03</span><h2>11 BEAT VISUALS</h2>
+      <p>Every colour screen in the system turns into a beat light, drawn in the conductor's colour, which changes every bar. AUTO moves to the next one every 8 bars.</p></div>
+    <div class="modes" id="modegrid"></div>
+  </div>
+</section>
+
+<!-- ================= start ================= -->
+<section id="start">
+  <div class="wrap">
+    <div class="sh"><span class="num">04</span><h2>GET STARTED</h2><p>The smallest setup is two boards. Grow it from there.</p></div>
+    <div class="start">
+      <div><h4>Pick a conductor</h4><p>A Meshnology W10 hears the room and broadcasts on LoRa. No W10? An M5StickS3 next to the speaker does the same.</p></div>
+      <div><h4>Flash a follower</h4><p>A Heltec V3 follows on LoRa straight away. Add the Heltec bridge (or let the W10 relay) and every ESP-NOW screen joins in.</p></div>
+      <div><h4>Add what you like</h4><p>Visualizers, a badge, a booth controller, LED strips, MIDI clock for your DJ software. Every one flashes from the browser.</p></div>
+    </div>
+    <div class="ctas"><a class="btn solid" href="https://anubisdarkwatch.github.io/flash/#beat">⚡ OPEN FLASH STATION</a><a class="btn" href="https://github.com/anubisdarkwatch/Beat-Commander#readme">READ THE DOCS ↗</a></div>
+    <p class="note">Flashing needs Chrome or Edge on a computer (Web Serial). Builds marked NEW are fresh and still being tested on hardware.</p>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div>
+      <div class="sig glyph">𓃣</div>
+      <p>Beat Commander is built by <a href="https://anubisdarkwatch.com" style="display:inline">Anubis Darkwatch</a> with Claude. MIT licensed.<br>
+      Thanks to <b>Meshnology</b> for the W10 and <b>Seeed Studio</b> for the XIAO kits.</p>
+      <p style="color:#5c4c2a">the watcher in the static</p>
+    </div>
+    <div>
+      <h5>PROJECT</h5>
+      <a href="https://anubisdarkwatch.github.io/flash/#beat">Flash Station</a>
+      <a href="https://github.com/anubisdarkwatch/Beat-Commander">GitHub</a>
+      <a href="https://www.youtube.com/watch?v=Qkt_P5Uwy7A">The video</a>
+    </div>
+    <div>
+      <h5>ANUBIS DARKWATCH</h5>
+      <a href="https://anubisdarkwatch.com">Music + links</a>
+      <a href="https://anubis-shop.fourthwall.com">Merch</a>
+      <a href="https://www.instagram.com/anubisdarkwatch">Instagram</a>
+      <a href="https://www.youtube.com/@anubisdarkwatch">YouTube</a>
+      <a href="https://www.tiktok.com/@djanubisdarkwatch">TikTok</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+(() => {
+  const FLASH = "https://anubisdarkwatch.github.io/flash/#";
+  const GH = "https://github.com/anubisdarkwatch/Beat-Commander#";
+  const I = "site/img/";
+  const GROUPS = [
+    { name: "CONDUCTORS", blurb: "They listen to the music and set the beat for everyone.", devs: [
+      ["W10 Conductor", "Meshnology W10", "Mic + LoRa. Hears the kick, finds the tempo and beat 1, broadcasts every beat. Also relays a StickS3 placed at the speaker.", "w10-conductor.jpg", "w10-beat-conductor"],
+      ["Pocket Conductor", "M5Stack StickS3", "A tiny mic conductor you can set right next to the speaker. Tap tempo, take command, ON AIR.", "sticks3.jpg", "sticks3-pocket-conductor"],
+    ]},
+    { name: "THE LINK", blurb: "LoRa across the venue, ESP-NOW around the booth.", devs: [
+      ["Beat Bridge", "Heltec WiFi LoRa 32 V3", "LoRa ⇄ ESP-NOW for the booth gear. Runs fine with a dead screen; a working one shows the beat.", "beat-bridge.jpg", "beat-bridge-heltec-v3"],
+      ["Beat Follower", "Heltec WiFi LoRa 32 V3", "Flashes on every beat straight off LoRa, with a 7-page OLED beat screen.", "heltec-follower.jpg", "beat-follower-heltec-v3"],
+      ["Beat Deck", "LilyGo T-Deck Plus", "Keyboard controller with its own LoRa radio: hears the conductor directly and takes command on air.", "tdeck-deck.jpg", "tdeck-beat-deck", true],
+    ]},
+    { name: "BOOTH CONTROLLERS", blurb: "Follow the beat, or take it: tap, type a BPM, nudge it.", devs: [
+      ["Booth Console", "CYD 2.8\" touch screen", "The touch console: follow, tap or take command, with tempo and nudge buttons.", "cyd-console.jpg", "cyd-beat-console"],
+      ["Beat Dial", "M5Stack M5Dial", "Turn the dial to set the tempo, press to take the beat.", "m5dial.jpg", "m5dial-beat-dial"],
+      ["Beat Command Center", "M5Stack Tab5", "The big-screen booth dashboard, with the gateway plugged in by USB.", "tab5-command.jpg", "tab5-beat-command"],
+      ["Beat Terminal", "M5Stack Cardputer ADV", "Type a BPM, tap tempo, nudge the beat from a keyboard.", "cardputer-terminal.jpg", "cardputer-beat-terminal"],
+    ]},
+    { name: "VISUALIZERS", blurb: "Any colour screen becomes a beat light: 11 modes, in the conductor's colour.", devs: [
+      ["Beat Visualizer", "LilyGo TTGO T-Display", "Pocket-size visuals with two buttons.", "beat-visualizer-ttgo.jpg", "beat-visualizer-ttgo"],
+      ["Beat Visualizer", "CYD 2.8\"", "Tap to change the mode, hold for AUTO.", "beat-visualizer.jpg", "beat-visualizer-cyd"],
+      ["Beat Visualizer", "CYD 3.2\" IPS", "The big, bright one, with capacitive touch.", "beat-visualizer-cyd32.jpg", "beat-visualizer-cyd32"],
+      ["Beat Visualizer", "Rabbit-Labs Phantom", "Beat visuals in your hand, finger or stylus.", "beat-visualizer-phantom.jpg", "beat-visualizer-phantom", true],
+      ["Beat Light", "LilyGo T-Dongle C5", "A USB beat light: plug it into any charger or power bank.", "tdongle-light.jpg", "tdongle-beat-light", true],
+    ]},
+    { name: "WEARABLE + LIGHTING", blurb: "Take the beat with you, or light up the booth.", devs: [
+      ["Beat Badge", "Piglet (XIAO ESP32-C5)", "Walk the room, check coverage, take the beat with one button.", "piglet-badge.jpg", "piglet-beat-badge"],
+      ["Beat Strip", "ESP32-C5 + LED strip", "WS2812B / SK6812 strips on the beat: pulse, chase, burst, bar, sparkle, rainbow.", "c5-beat-strip.jpg", "c5-beat-strip-devkit", true],
+    ]},
+    { name: "STUDIO LINK", blurb: "The beat into your DJ software and DAW.", devs: [
+      ["Beat Gateway", "Seeed XIAO ESP32-S3", "USB MIDI clock (24 ppqn) into your DJ software or DAW.", "beat-gateway.jpg", "xiao-beat-gateway"],
+      ["Beat Gateway Dongle", "LilyGo T-Dongle S3", "The gateway on a USB stick, with a screen and a beat LED.", "tdongle-gateway.jpg", "tdongle-beat-gateway", true],
+      ["Beat Hub", "Raspberry Pi", "Ableton Link, OSC and a web dashboard, fed by the gateway.", "beat-hub.jpg", null],
+    ]},
+  ];
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  document.getElementById("groups").innerHTML = GROUPS.map((g) => `
+    <div class="group"><h3>${g.name}</h3><p>${esc(g.blurb)}</p><div class="grid">${g.devs.map(([t, hw, d, img, id, isNew]) => `
+      <article class="dev"><img src="${I + img}" alt="${esc(t)} on the ${esc(hw)}" loading="lazy" width="720" height="450">
+        <div class="b"><h4>${esc(t)}${isNew ? '<span class="tag">NEW</span>' : ""}</h4><div class="hw">${esc(hw)}</div><p>${esc(d)}</p>
+        ${id ? `<a class="go" href="${FLASH + id}">⚡ FLASH</a>` : `<a class="go alt" href="${GH}beat-gateway-xiao-esp32-s3--beat-hub">SET IT UP ↗</a>`}</div></article>`).join("")}
+    </div></div>`).join("");
+
+  const MODES = [["PULSE", "rings"], ["TUNNEL", "squares"], ["BARS", "spectrum"], ["WARP", "starfield"], ["PLASMA", "colour field"], ["BPM", "big tempo"],
+                 ["KALEIDO", "12-fold"], ["GRID", "synthwave"], ["PYRAMID", "rays + ankh"], ["FIREWORKS", "beat 1 = big"], ["RAIN", "hieroglyphs"]];
+  document.getElementById("modegrid").innerHTML = MODES.map(([m, d]) =>
+    `<div class="mode"><img src="${I}modes/${m.toLowerCase()}.webp" alt="${m} visual mode" loading="lazy" width="320" height="240"><div>${m}<span>${d}</span></div></div>`).join("");
+
+  // video: load YouTube only when asked
+  const v = document.getElementById("video");
+  const play = () => { v.innerHTML = '<iframe src="https://www.youtube-nocookie.com/embed/Qkt_P5Uwy7A?autoplay=1&rel=0" title="Beat Commander" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>'; v.style.cursor = "default"; };
+  v.addEventListener("click", play, { once: true });
+  v.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); play(); } });
+
+  // ---------- the page's own beat: 120 BPM, tap the BPM pill to set your own ----------
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let bpm = 120, t0 = performance.now(), taps = [];
+  const bpmv = document.getElementById("bpmv"), dots = [...document.querySelectorAll("#dots i")];
+  document.getElementById("bpm").addEventListener("click", () => {
+    const now = performance.now();
+    taps = taps.filter((t) => now - t < 2500); taps.push(now);
+    if (taps.length >= 2) {
+      const per = (taps[taps.length - 1] - taps[0]) / (taps.length - 1);
+      bpm = Math.min(200, Math.max(60, 60000 / per)); bpmv.textContent = bpm.toFixed(1);
+    }
+    t0 = now;                                   // the tap lands on beat 1
+  });
+  const nodes = [...document.querySelectorAll(".flow .node")];
+  const paths = ["p1", "p3", "p2", "p4", "p6", "p5", "p7"].map((id) => document.getElementById(id));
+  const pg = document.getElementById("pulses");
+  const dotsSvg = paths.map(() => { const c = document.createElementNS("http://www.w3.org/2000/svg", "circle"); c.setAttribute("r", 6); c.setAttribute("fill", "#39ff14"); c.setAttribute("filter", "url(#glow)"); c.setAttribute("opacity", 0); pg.appendChild(c); return c; });
+  const lens = paths.map((p) => p.getTotalLength());
+  let lastBeat = -1;
+  function frame(now) {
+    const per = 60000 / bpm, b = (now - t0) / per, idx = Math.floor(b), ph = b - idx, pos = ((idx % 4) + 4) % 4;
+    const lvl = reduce ? 0 : Math.exp(-ph * 5) * (pos === 0 ? 1 : 0.7);
+    document.documentElement.style.setProperty("--beat", lvl.toFixed(3));
+    if (idx !== lastBeat) { lastBeat = idx; dots.forEach((d, i) => { d.className = i === pos ? (pos === 0 ? "on down" : "on") : ""; }); }
+    if (!reduce) {
+      // the beat travels speaker -> conductor -> LoRa -> ESP-NOW across one beat
+      const seg = [[0, 0.3], [0.3, 0.62], [0.3, 0.62], [0.3, 0.62], [0.62, 0.95], [0.62, 0.95], [0.62, 0.95]];
+      paths.forEach((p, i) => {
+        const [a, z] = seg[i], f = (ph - a) / (z - a), c = dotsSvg[i];
+        if (f >= 0 && f <= 1) { const pt = p.getPointAtLength(f * lens[i]); c.setAttribute("cx", pt.x); c.setAttribute("cy", pt.y); c.setAttribute("opacity", 1); c.setAttribute("fill", pos === 0 ? "#ffb000" : "#39ff14"); }
+        else c.setAttribute("opacity", 0);
+      });
+      const stage = ph < 0.08 ? 0 : ph < 0.36 && ph > 0.28 ? 1 : ph > 0.6 && ph < 0.7 ? 2 : ph > 0.93 ? 3 : -1;
+      nodes.forEach((n) => n.classList.toggle("hit", +n.dataset.n === stage));
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

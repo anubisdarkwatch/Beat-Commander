@@ -1,5 +1,7 @@
 # 𓃣 Beat Commander
 
+**Website: [beatcommander.online](https://beatcommander.online)** · **Flash any device: [Flash Station](https://anubisdarkwatch.github.io/flash/#beat)**
+
 One beat, every light in the room. Beat Commander is a family of small boards that share a single beat over
 LoRa and ESP-NOW: a **conductor** listens to the music and sets the tempo, **followers** flash in sync across the
 venue, and booth controllers can **take command** of the beat at any moment.
