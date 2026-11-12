@@ -14,7 +14,7 @@ BPM, flashes its 1.54" screen and RGB LED on every beat, and broadcasts each bea
 - **Conductor:** Meshnology W10 (mic + LoRa), or the M5StickS3 Pocket Conductor (at the mic, relayed by the W10)
 - **Followers:** Heltec V3, the Piglet beat badge (and the XIAO kits, coming)
 - **Bridge:** Heltec V3, linking LoRa and ESP-NOW for the booth gear
-- **Booth controllers:** CYD console, M5Dial, M5Stack Tab5 Command Center, Cardputer ADV terminal, LilyGo T-Deck Plus Beat Deck (its own LoRa radio)
+- **Booth controllers:** CYD console, M5Dial, M5Stack Tab5 Command Center, Cardputer ADV terminal, LilyGo T-Deck Plus Beat Deck (its own LoRa radio), LilyGo T-Embed CC1101 Beat Embed
 - **Visualizers:** TTGO T-Display, CYD screens and the Rabbit-Labs Phantom, turning every beat into visuals
 - **Gateway:** XIAO ESP32-S3 on USB: MIDI clock, Ableton Link, OSC, and the Tab5's radio; or the T-Dongle S3 with a screen
 - **Beat Light:** T-Dongle C5, a USB beat light for any charger or power bank
@@ -60,6 +60,7 @@ Every board in the system has a ready-made `.bin`:
 | Seeed XIAO ESP32-C5 | Beat Strip (strip on D0) | [`firmware/C5-Beat-Strip-v1.0-xiao.bin`](firmware/C5-Beat-Strip-v1.0-xiao.bin) |
 | M5Stack Tab5 | Beat Command Center (big touch console, uses the Beat Gateway as its radio) | [`firmware/Tab5-Beat-Command-v1.0.5.bin`](firmware/Tab5-Beat-Command-v1.0.5.bin) |
 | M5Stack Cardputer ADV (or Cardputer) | Beat Commander terminal (keyboard booth controller) | [`firmware/Cardputer-Beat-Terminal-v1.0.1.bin`](firmware/Cardputer-Beat-Terminal-v1.0.1.bin) |
+| LilyGo T-Embed CC1101 | Beat Embed: knob controller, LED ring, mic conductor, visuals | [`firmware/TEmbed-Beat-Embed-v1.0.bin`](firmware/TEmbed-Beat-Embed-v1.0.bin) |
 | LilyGo T-Deck Plus / T-Deck (915 MHz) | Beat Deck: keyboard controller with its own LoRa radio, visuals, optional bridge | [`firmware/TDeck-Beat-Deck-v1.2.bin`](firmware/TDeck-Beat-Deck-v1.2.bin) |
 | Piglet (XIAO ESP32-C5 + OLED) | Beat badge: pocket follower + coverage checker | [`firmware/Piglet-Beat-Badge-C5-v1.0.3.bin`](firmware/Piglet-Beat-Badge-C5-v1.0.3.bin) |
 | LilyGo TTGO T-Display | Beat Visualizer (6 beat-synced visual modes) | [`firmware/Beat-Visualizer-v1.4-ttgo.bin`](firmware/Beat-Visualizer-v1.4-ttgo.bin) |
@@ -430,6 +431,42 @@ above at 0x0. If it won't connect: hold **G0**, plug in USB, let go, then INSTAL
 **Build from source:** Arduino IDE 2.x, board package **M5Stack** 3.x, board **M5Cardputer**, libraries
 **M5Cardputer** (1.1+, handles both keyboards), M5Unified, M5GFX. Fonts: `tools/mkfonts_cardputer.py`.
 Previews: `tools/build_preview.sh <M5GFX folder> <out folder> preview_cardputer.cpp`.
+
+## Beat Embed: LilyGo T-Embed CC1101
+
+![T-Embed Beat Embed screens](docs/tembed-screens.png)
+
+The T-Embed CC1101 has a rotary knob, an 8-LED ring and a mic, so the Beat Embed does three jobs in one hand:
+
+- **FOLLOW:** follows the beat link over ESP-NOW. The LED ring and the screen flash on every beat in the
+  conductor's colour (two LEDs per beat of the bar, the whole ring on beat 1). Turn the knob for the pages: **BEAT**,
+  then the 11 visuals.
+- **COMMAND:** press the knob to take the beat on the same grid. The knob sets the tempo (+/- 0.1 BPM a click,
+  +/- 1 when you spin it), the side key taps it. Beats go out through the Heltec bridge or the W10 relay. Press again
+  to hand it back.
+- **CONDUCT:** the mic finds the beat with the W10's engine (like the StickS3 Pocket Conductor). Press the knob for
+  **ON AIR** and every beat goes out through the bridge / W10 relay.
+
+| Control | Does |
+|---|---|
+| knob turn | next / previous page, or the tempo in COMMAND |
+| knob press | take command / hand back (FOLLOW) - ON AIR on / off (CONDUCT) |
+| knob hold 1.5 s | AUTO visuals (new one every 8 bars) |
+| knob hold 4 s | display fix (colour order / flip / invert) |
+| side key tap | tap tempo (takes command in FOLLOW) |
+| side key hold 1.5 s | FOLLOW <-> CONDUCT |
+| side key hold 4 s | mic gain: club / loud room / quiet room / max |
+
+The screen says what letting go will do while you hold. Everything is saved. The CC1101 radio isn't used: it
+can't hear LoRa, so the Embed joins over ESP-NOW like the other booth gear.
+
+**Flash it:** [Flash Station](https://anubisdarkwatch.github.io/flash/#tembed-beat-embed), or
+[`firmware/TEmbed-Beat-Embed-v1.0.bin`](firmware/TEmbed-Beat-Embed-v1.0.bin) at 0x0. If it won't connect: hold
+the knob pressed in (BOOT) while plugging in USB, then INSTALL. Replaces Bruce / the factory firmware.
+
+**Build from source:** `tembed_beat_embed/`, esp32 by Espressif 3.x, board **ESP32S3 Dev Module**, Flash 16MB,
+PSRAM **Disabled** (the mic's DMA must stay in internal RAM), partition **16M Flash (3MB APP/9.9MB FATFS)**, USB CDC
+On Boot **Enabled**. Library: LovyanGFX. Preview: `tools/build_preview.sh <M5GFX folder> <out folder> preview_embed.cpp`.
 
 ## Beat Deck: LilyGo T-Deck Plus (915 MHz)
 
