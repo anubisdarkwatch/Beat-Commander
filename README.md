@@ -60,7 +60,7 @@ Every board in the system has a ready-made `.bin`:
 | Seeed XIAO ESP32-C5 | Beat Strip (strip on D0) | [`firmware/C5-Beat-Strip-v1.0-xiao.bin`](firmware/C5-Beat-Strip-v1.0-xiao.bin) |
 | M5Stack Tab5 | Beat Command Center (big touch console, uses the Beat Gateway as its radio) | [`firmware/Tab5-Beat-Command-v1.0.5.bin`](firmware/Tab5-Beat-Command-v1.0.5.bin) |
 | M5Stack Cardputer ADV (or Cardputer) | Beat Commander terminal (keyboard booth controller) | [`firmware/Cardputer-Beat-Terminal-v1.0.1.bin`](firmware/Cardputer-Beat-Terminal-v1.0.1.bin) |
-| LilyGo T-Embed CC1101 | Beat Embed: knob controller, LED ring, mic conductor, visuals | [`firmware/TEmbed-Beat-Embed-v1.0.bin`](firmware/TEmbed-Beat-Embed-v1.0.bin) |
+| LilyGo T-Embed CC1101 | Beat Embed: knob controller, LED ring, mic conductor, visuals | [`firmware/TEmbed-Beat-Embed-v1.0.1.bin`](firmware/TEmbed-Beat-Embed-v1.0.1.bin) |
 | LilyGo T-Deck Plus / T-Deck (915 MHz) | Beat Deck: keyboard controller with its own LoRa radio, visuals, optional bridge | [`firmware/TDeck-Beat-Deck-v1.2.bin`](firmware/TDeck-Beat-Deck-v1.2.bin) |
 | Piglet (XIAO ESP32-C5 + OLED) | Beat badge: pocket follower + coverage checker | [`firmware/Piglet-Beat-Badge-C5-v1.0.3.bin`](firmware/Piglet-Beat-Badge-C5-v1.0.3.bin) |
 | LilyGo TTGO T-Display | Beat Visualizer (6 beat-synced visual modes) | [`firmware/Beat-Visualizer-v1.4-ttgo.bin`](firmware/Beat-Visualizer-v1.4-ttgo.bin) |
@@ -461,7 +461,7 @@ The screen says what letting go will do while you hold. Everything is saved. The
 can't hear LoRa, so the Embed joins over ESP-NOW like the other booth gear.
 
 **Flash it:** [Flash Station](https://anubisdarkwatch.github.io/flash/#tembed-beat-embed), or
-[`firmware/TEmbed-Beat-Embed-v1.0.bin`](firmware/TEmbed-Beat-Embed-v1.0.bin) at 0x0. If it won't connect: hold
+[`firmware/TEmbed-Beat-Embed-v1.0.1.bin`](firmware/TEmbed-Beat-Embed-v1.0.1.bin) at 0x0. If it won't connect: hold
 the knob pressed in (BOOT) while plugging in USB, then INSTALL. Replaces Bruce / the factory firmware.
 
 **Build from source:** `tembed_beat_embed/`, esp32 by Espressif 3.x, board **ESP32S3 Dev Module**, Flash 16MB,

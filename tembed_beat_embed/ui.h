@@ -109,7 +109,7 @@ void drawBeatPage(LGFX_Sprite& s, const View& v, uint32_t now) {
     int x = 4 + i * 79, w = 75;
     bool on = active && v.beatPos == i;
     s.fillRoundRect(x, 140, w, 12, 5, on ? ehue(v.hue, 120 + lvl * 135 / 255) : E_CARD);
-    if (i == 0 && !on) s.drawRoundRect(x, 140, w, 12, 5, active ? E_AMB_D : E_LINE);
+    if (!on) s.drawRoundRect(x, 140, w, 12, 5, i == 0 && active ? E_AMB_D : E_LINE);   // outlines: the panel crushes the dark fill
   }
   // controls
   const char* h = conduct ? "PRESS on air  KEY tap  TURN page" : v.mode == M_TAKE ? "TURN tempo  PRESS free  KEY tap" : "PRESS take  KEY tap  TURN page";

@@ -33,7 +33,7 @@
 #include "beat_engine.h"
 #include "ui.h"
 
-#define FW_VERSION  "1.0"
+#define FW_VERSION  "1.0.1"
 #define LINK_AIR_MS 11
 #define FLYWHEEL_MS 4000
 
@@ -388,14 +388,20 @@ void inputs(uint32_t now) {
 }
 
 // ================= battery (BQ27220 fuel gauge) =================
+static int gaugeRead(uint8_t reg) {                    // BQ27220: 16-bit little-endian, -1 on no answer
+  Wire.beginTransmission(0x55); Wire.write(reg);
+  if (Wire.endTransmission(false) != 0 || Wire.requestFrom(0x55, 2) != 2) return -1;
+  return Wire.read() | (Wire.read() << 8);
+}
 int battery() {
   static int pct = -1; static uint32_t at = 0;
   if (at && millis() - at < 5000) return pct;
   at = millis() | 1;
-  Wire.beginTransmission(0x55); Wire.write(0x2C);
-  if (Wire.endTransmission(false) != 0 || Wire.requestFrom(0x55, 2) != 2) return pct = -1;
-  int v = Wire.read() | (Wire.read() << 8);
-  return pct = v <= 100 ? v : -1;
+  int mv = gaugeRead(0x08), soc = gaugeRead(0x2C);      // voltage (mV), state of charge (%)
+  if (mv < 2500 || mv > 5000) return pct = -1;          // no gauge / no battery: hide it
+  if (soc > 0 && soc <= 100) return pct = soc;
+  // the gauge hasn't learned this cell yet (it reports 0 until a full charge cycle): estimate from voltage
+  return pct = constrain((mv - 3300) * 100 / (4150 - 3300), 0, 100);
 }
 
 // ================= ring + screen =================
