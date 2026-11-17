@@ -13,7 +13,7 @@ BPM, flashes its 1.54" screen and RGB LED on every beat, and broadcasts each bea
 **The crew**
 - **Conductor:** Meshnology W10 (mic + LoRa), or the M5StickS3 Pocket Conductor (at the mic, relayed by the W10)
 - **Followers:** Heltec V3, the Piglet beat badge (and the XIAO kits, coming)
-- **Bridge:** Heltec V3, linking LoRa and ESP-NOW for the booth gear
+- **Bridge:** Heltec V3, or the Beat Node (XIAO ESP32-S3 + Wio-SX1262 kit, bridge and gateway in one), linking LoRa and ESP-NOW for the booth gear
 - **Booth controllers:** CYD console, M5Dial, M5Stack Tab5 Command Center, Cardputer ADV terminal, LilyGo T-Deck Plus Beat Deck (its own LoRa radio), LilyGo T-Embed CC1101 Beat Embed
 - **Visualizers:** TTGO T-Display, CYD screens and the Rabbit-Labs Phantom, turning every beat into visuals
 - **Gateway:** XIAO ESP32-S3 on USB: MIDI clock, Ableton Link, OSC, and the Tab5's radio; or the T-Dongle S3 with a screen
@@ -47,13 +47,14 @@ Every board in the system has a ready-made `.bin`:
 
 | Board | Role | File |
 |---|---|---|
-| Meshnology W10 | Conductor (mic, LoRa TX) | [`firmware/W10-Beat-Conductor-v1.1.1.bin`](firmware/W10-Beat-Conductor-v1.1.1.bin) |
+| Meshnology W10 | Conductor (mic, LoRa TX) | [`firmware/W10-Beat-Conductor-v1.1.2.bin`](firmware/W10-Beat-Conductor-v1.1.2.bin) |
 | Heltec WiFi LoRa 32 V3 | Follower (flashes on the beat) | [`firmware/Beat-Follower-HeltecV3-v1.1.bin`](firmware/Beat-Follower-HeltecV3-v1.1.bin) |
 | Heltec WiFi LoRa 32 V3 | Bridge for the booth console | [`firmware/Beat-Bridge-HeltecV3-v1.1.bin`](firmware/Beat-Bridge-HeltecV3-v1.1.bin) |
 | CYD (ESP32-2432S028R) | Booth console | [`firmware/CYD-Beat-Console-v1.0.5.bin`](firmware/CYD-Beat-Console-v1.0.5.bin) |
 | M5Stack M5Dial | Handheld takeover controller | [`firmware/M5Dial-Beat-Dial-v1.0.bin`](firmware/M5Dial-Beat-Dial-v1.0.bin) |
 | M5Stack StickS3 | Pocket conductor (mic) / beat badge | [`firmware/StickS3-Pocket-Conductor-v1.0.5.bin`](firmware/StickS3-Pocket-Conductor-v1.0.5.bin) |
 | Seeed XIAO ESP32-S3 | Beat Gateway (USB MIDI clock + feed for Beat Hub) | [`firmware/Beat-Gateway-XIAO-S3-v1.3.bin`](firmware/Beat-Gateway-XIAO-S3-v1.3.bin) |
+| Seeed XIAO ESP32-S3 + Wio-SX1262 kit | Beat Node: LoRa bridge + Beat Gateway in one | [`firmware/Beat-Node-XIAO-Wio-v1.0.bin`](firmware/Beat-Node-XIAO-Wio-v1.0.bin) |
 | LilyGo T-Dongle S3 | Beat Gateway Dongle: MIDI clock + Beat Hub feed, with a screen | [`firmware/TDongle-Beat-Gateway-v1.1.bin`](firmware/TDongle-Beat-Gateway-v1.1.bin) |
 | LilyGo T-Dongle C5 | Beat Light: USB beat light + Beat Hub feed (no MIDI) | [`firmware/TDongle-Beat-Light-C5-v1.1.bin`](firmware/TDongle-Beat-Light-C5-v1.1.bin) |
 | ESP32-C5 DevKit / Waveshare C5 | Beat Strip: drives an LED strip on the beat | [`firmware/C5-Beat-Strip-v1.0-devkit.bin`](firmware/C5-Beat-Strip-v1.0-devkit.bin) |
@@ -596,6 +597,41 @@ it on LoRa, and the gateway mirrors the bridge's confirmation for consoles. The 
 **USB-OTG (TinyUSB)**, USB CDC On Boot **Disabled**. No extra libraries. Latency figures (how long after the beat each
 frame type arrives) are at the top of `xiao_beat_gateway.ino`.
 
+## Beat Node: XIAO ESP32-S3 + Wio-SX1262 kit
+
+The Seeed XIAO ESP32-S3 + Wio-SX1262 kit (the one sold for Meshtastic) as the whole booth link in one small stick.
+Its LoRa radio hears the conductor directly, so it does both jobs at once:
+
+- **Bridge** (the Heltec V3 bridge's job): every beat heard on LoRa goes out on ESP-NOW for the booth gear, with
+  RSSI / SNR. Takeover beats from a booth controller (StickS3, Dial, CYD, Cardputer, T-Embed, Tab5) go out on LoRa
+  and are confirmed back, and it sends the bridge heartbeat, so controllers show **BRIDGE OK**.
+- **Gateway** (the XIAO Beat Gateway's job), when plugged into a computer, Pi or the Tab5: USB MIDI clock, the serial
+  feed for Beat Hub and TrackID, and the Tab5's `F,...` takeover lines go straight out on LoRa. It shows up as
+  "Beat Gateway", so Beat Hub and the Tab5 find it like the XIAO.
+
+On a USB charger or power bank it is a bridge only. With a Beat Node, the Heltec bridge is optional.
+
+**Bridge mode** (saved): **AUTO** (default) bridges unless another bridge is already on air: a Heltec bridge or a
+T-Deck in bridge role always wins, and between several Beat Nodes the one with the lowest MAC address wins, so a beat
+is never transmitted twice. The W10 (v1.1.2 or newer) hands relaying to a Beat Node. **ON** = always bridge.
+**OFF** = never transmit (gateway and listener only).
+
+**LED** (the XIAO's orange LED): a flash on every beat, longer on beat 1, a double flash when the node itself put the
+beat on air, a short blip every 2 s while waiting. Six fast flashes at start-up = the LoRa radio wasn't found.
+**Button** (on the Wio board): hold 2 s = next bridge mode; the LED answers with 1 / 2 / 3 blinks = AUTO / ON / OFF.
+
+**Serial** (115200, any terminal): `?` status, `bridge auto|on|off`, `power 2-22` (LoRa dBm, default 10),
+`notes on|off`, `transport on|off`, `channel 1-16`, `F,<bpm x10>,<beat 0-3>,<hue>`. The B / S / R / A / F / H feed is
+the same as the [Beat Gateway's](#serial-feed).
+
+**Flash it:** screw the LoRa antenna on first (never transmit without it). Hold **B** (BOOT, the tiny button on the
+XIAO) while plugging it in, let go, then INSTALL on [Flash Station](https://anubisdarkwatch.github.io/flash/#xiao-wio-beat-node)
+(Beat Node card). This replaces Meshtastic; reflash it from flasher.meshtastic.org to go back.
+
+**Build from source:** `xiao_wio_beat_node/`, Arduino IDE 2.x, esp32 by Espressif 3.x, board **XIAO_ESP32S3**, USB Mode
+**USB-OTG (TinyUSB)**, no extra libraries. Pins (Wio-SX1262 on the XIAO): NSS 41, DIO1 39, BUSY 40, RESET 42,
+RX switch 38, SPI SCK 7 / MISO 8 / MOSI 9; DIO2 drives the RF switch, DIO3 the 1.8 V TCXO.
+
 ## T-Dongle S3 Beat Gateway + T-Dongle C5 Beat Light
 
 ![T-Dongle beat screens](docs/tdongle-screens.png)
@@ -709,7 +745,7 @@ tempo estimate, confidence, onsets per second and mic level once a second.
 ## Roadmap
 
 - Latency compensation on followers (~10 ms LoRa airtime)
-- Followers for XIAO ESP32S3 + Wio-SX1262 and other SX1262 boards
+- Followers for other SX1262 boards
 - Bluetooth MIDI clock input from DJ software
 - Tilt-controlled effects via the onboard QMI8658 IMU
 

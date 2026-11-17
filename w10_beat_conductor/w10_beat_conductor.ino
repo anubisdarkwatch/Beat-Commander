@@ -7,6 +7,7 @@
 // When those beats stop for 2 s, it picks the beat up from its own mic on the same grid (if LORA TX is on).
 // Relaying works with LORA TX off too (then the W10 is a pure relay). If a Heltec bridge is also running, the W10
 // leaves the relaying to it and only steps aside.
+// v1.1.2: its heartbeat says "W10", so a Beat Node (XIAO + Wio-SX1262) nearby takes over the relaying.
 #include <Arduino.h>
 #include <SPI.h>
 #include <Wire.h>
@@ -18,7 +19,7 @@
 #include <esp_wifi.h>
 #include "link.h"
 
-#define FW_VERSION "1.1.1"
+#define FW_VERSION "1.1.2"
 #define RELAY_HOLD_MS 2000      // booth beats this recent = relay mode (own mic steps aside)
 
 // ---------------- Pins (Meshnology W10 pin table) ----------------
@@ -419,7 +420,7 @@ void loop() {
   // --- relay: beats from a booth controller over ESP-NOW go out on LoRa ---
   LinkFrame lf;
   while (xQueueReceive(linkQ, &lf, 0) == pdTRUE) {
-    if (lf.type == LF_HELLO) { otherBridgeMs = now; continue; }            // a Heltec bridge does the relaying
+    if (lf.type == LF_HELLO) { otherBridgeMs = now; continue; }            // a Heltec bridge or Beat Node does the relaying
     if (lf.type == LF_ACK) {                                               // a beat the Heltec bridge put on LoRa:
       txSeq = lf.seq + 1;                                                  // carry on from its number, so followers
       continue;                                                            // see no gap when our mic takes over again
@@ -447,7 +448,7 @@ void loop() {
   static uint32_t lastHello = 0;
   if (espnowUp && weRelay(now) && now - lastHello >= 1000) {              // tell controllers a bridge is here
     lastHello = now;
-    LinkFrame h = linkFrame(LF_HELLO); h.flags = 1; h.count = relayed;
+    LinkFrame h = linkFrame(LF_HELLO); h.flags = 1 | 4; h.count = relayed;   // bit2: "a W10", so a Beat Node takes over
     espnowSend(h);
   }
   static bool wasRelaying = false;
